@@ -194,5 +194,31 @@
       "updated_at:80"
     ],
     "floats": []
+  },
+  "maintenance_requests": {
+    "strings": [
+      "dept:255",
+      "material_id:64",
+      "material_name:255",
+      "requested_by:64",
+      "requester_name:255",
+      "condition:255",
+      "maintenance_date:80",
+      "next_due_at:80",
+      "maintenance_type:255",
+      "service_provider:255",
+      "technician:255",
+      "notes:1000",
+      "status:80",
+      "admin_note:1000",
+      "reviewed_by:64",
+      "reviewer_name:255",
+      "reviewed_at:80",
+      "created_at:80",
+      "updated_at:80"
+    ],
+    "floats": [
+      "cost"
+    ]
   }
 }
