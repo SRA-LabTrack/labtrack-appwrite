@@ -80,10 +80,18 @@ async function createSafely(label, fn, maxAttempts = 8) {
   return null;
 }
 
-async function createDatabase() {
-  await createSafely(`database ${databaseId}`, () =>
-    databases.create(databaseId, "LabTrack")
-  );
+async function verifyExistingDatabase() {
+  try {
+    await databases.get(databaseId);
+    console.log(`• Using existing database ${databaseId}`);
+  } catch (error) {
+    throw new Error(
+      `The existing Appwrite database "${databaseId}" could not be opened. ` +
+      `Create or select that one database in Appwrite, verify APPWRITE_DATABASE_ID, and run setup again. ` +
+      `This updater will never create a second database, so it cannot trigger the Free-plan database-count limit. ` +
+      `Original error: ${error?.message || error}`
+    );
+  }
 }
 
 async function createCollection(collectionId) {
@@ -120,6 +128,77 @@ async function createFloatAttribute(collectionId, key) {
   await createSafely(`${collectionId}.${key}`, () =>
     databases.createFloatAttribute(databaseId, collectionId, key, false)
   );
+}
+
+
+function validateSchemaBudgets() {
+  const maxDocumentBytes = 65535;
+  const safetyLimit = 56000;
+
+  for (const [collectionId, schema] of Object.entries(collections)) {
+    const stringBytes = (schema.strings || []).reduce((sum, item) => {
+      const [, size] = item.split(":");
+      return sum + Number(size || 255) * 4;
+    }, 0);
+    const numericBytes = (schema.floats || []).length * 8;
+    const estimatedBytes = stringBytes + numericBytes;
+
+    if (estimatedBytes > safetyLimit) {
+      throw new Error(
+        `${collectionId} schema is estimated at ${estimatedBytes.toLocaleString()} bytes, which is too close to Appwrite's ${maxDocumentBytes.toLocaleString()}-byte collection document limit. Reduce string sizes before running setup.`
+      );
+    }
+
+    console.log(`• ${collectionId} schema budget: about ${estimatedBytes.toLocaleString()} / ${maxDocumentBytes.toLocaleString()} bytes`);
+  }
+}
+
+async function repairExistingAttributes(collectionId, schema) {
+  const desiredStringSizes = new Map(
+    (schema.strings || []).map((item) => {
+      const [key, size] = item.split(":");
+      return [key, Number(size || 255)];
+    })
+  );
+
+  const result = await databases.listAttributes(
+    databaseId,
+    collectionId,
+    [Query.limit(100)]
+  );
+
+  for (const attribute of result.attributes || []) {
+    if (!desiredStringSizes.has(attribute.key)) continue;
+
+    if (["failed", "stuck"].includes(attribute.status)) {
+      console.log(`↻ Removing failed attribute ${collectionId}.${attribute.key} so it can be recreated`);
+      await databases.deleteAttribute(databaseId, collectionId, attribute.key);
+      await sleep(1200);
+      continue;
+    }
+
+    const desiredSize = desiredStringSizes.get(attribute.key);
+    const currentSize = Number(attribute.size || 0);
+    if (attribute.type !== "string" || !currentSize || currentSize <= desiredSize) continue;
+
+    console.log(`↘ Resizing ${collectionId}.${attribute.key} from ${currentSize} to ${desiredSize}`);
+    try {
+      await databases.updateStringAttribute({
+        databaseId,
+        collectionId,
+        key: attribute.key,
+        required: Boolean(attribute.required),
+        default: attribute.required ? undefined : (attribute.default ?? null),
+        size: desiredSize,
+      });
+      await sleep(900);
+    } catch (error) {
+      throw new Error(
+        `Could not resize ${collectionId}.${attribute.key} from ${currentSize} to ${desiredSize}. ` +
+        `Check whether an existing document contains text longer than ${desiredSize} characters, shorten that value in Appwrite, then run setup again. Original error: ${error?.message || error}`
+      );
+    }
+  }
 }
 
 async function waitForAttributes(collectionId, expectedKeys, timeoutMs = 180000) {
@@ -178,12 +257,19 @@ async function main() {
   console.log(`Project: ${projectId}`);
   console.log(`Database: ${databaseId}\n`);
 
-  await createDatabase();
+  validateSchemaBudgets();
+  await verifyExistingDatabase();
 
   for (const collectionId of Object.keys(collections)) {
     await createCollection(collectionId);
   }
 
+  console.log("\nChecking existing attributes and reducing oversized fields...");
+  for (const [collectionId, schema] of Object.entries(collections)) {
+    await repairExistingAttributes(collectionId, schema);
+  }
+
+  console.log("\nCreating missing attributes...");
   for (const [collectionId, schema] of Object.entries(collections)) {
     for (const item of schema.strings || []) {
       const [key, size] = item.split(":");
@@ -245,6 +331,13 @@ async function main() {
     restock_requests: [
       ["idx_dept", "key", ["dept"]],
       ["idx_status", "key", ["status"]],
+      ["idx_updated_at", "key", ["updated_at"], ["DESC"]],
+    ],
+    culture_logs: [
+      ["idx_dept", "key", ["dept"]],
+      ["idx_type", "key", ["organism_type"]],
+      ["idx_status", "key", ["status"]],
+      ["idx_ready_at", "key", ["ready_at"], ["ASC"]],
       ["idx_updated_at", "key", ["updated_at"], ["DESC"]],
     ],
   };

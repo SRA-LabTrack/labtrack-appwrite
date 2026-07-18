@@ -39,7 +39,8 @@
       "condition:255",
       "last_maintenance_at:80",
       "maintenance_due_at:80",
-      "maintenance_note:1000"
+      "maintenance_note:1000",
+      "material_responsible:255"
     ],
     "floats": [
       "qty",
@@ -81,27 +82,28 @@
       "material_type:80",
       "unit:80",
       "expires_at:80",
-      "purpose:5000",
+      "purpose:1000",
       "requested_by:64",
       "requester_name:255",
       "status:80",
-      "admin_note:2000",
+      "admin_note:1000",
       "reviewed_by:64",
       "reviewer_name:255",
       "reviewed_at:80",
       "created_at:80",
       "supplier_name:255",
       "hazard_level:80",
-      "storage_instruction:5000",
-      "handling_instruction:5000",
-      "disposal_instruction:5000",
-      "ppe_required:1000",
-      "incompatible_with:1000",
-      "compatibility_notes:5000",
+      "storage_instruction:1000",
+      "handling_instruction:1000",
+      "disposal_instruction:1000",
+      "ppe_required:500",
+      "incompatible_with:500",
+      "compatibility_notes:1000",
       "condition:255",
       "last_maintenance_at:80",
       "maintenance_due_at:80",
-      "maintenance_note:5000"
+      "maintenance_note:1000",
+      "material_responsible:255"
     ],
     "floats": [
       "qty",
@@ -174,5 +176,23 @@
       "qty",
       "estimated_cost"
     ]
+  },
+  "culture_logs": {
+    "strings": [
+      "dept:255",
+      "organism_type:40",
+      "culture_name:255",
+      "strain:255",
+      "stored_at:80",
+      "ready_at:80",
+      "status:80",
+      "storage_location:255",
+      "notes:750",
+      "recorded_by:64",
+      "recorded_by_name:255",
+      "created_at:80",
+      "updated_at:80"
+    ],
+    "floats": []
   }
 }
