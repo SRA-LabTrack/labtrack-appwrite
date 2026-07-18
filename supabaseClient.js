@@ -18,6 +18,7 @@ const COLLECTIONS = {
   material_borrows: "material_borrows",
   suppliers: "suppliers",
   restock_requests: "restock_requests",
+  culture_logs: "culture_logs",
 };
 
 const client = isAppwriteConfigured
@@ -457,17 +458,32 @@ class AppwriteChannelBuilder {
     this.unsubscribe = null;
   }
 
-  on(_event, filter, callback) {
-    this.handlers.push({ filter, callback });
+  on(eventName, filter, callback) {
+    this.handlers.push({ eventName, filter, callback });
     return this;
   }
 
   subscribe() {
     if (!client?.subscribe) return this;
-    const unsubscribers = this.handlers.map(({ filter, callback }) => {
+    const unsubscribers = this.handlers.map(({ eventName, filter, callback }) => {
       const collection = filter?.table ? collectionFor(filter.table) : "*";
       const channel = `databases.${appwriteDatabaseId}.collections.${collection}.documents`;
-      return client.subscribe(channel, () => callback());
+      return client.subscribe(channel, (event) => {
+        const events = event?.events || [];
+        const expectedInsert = filter?.event === "INSERT" || eventName === "INSERT";
+        if (expectedInsert && !events.some((name) => name.endsWith(".create"))) return;
+
+        const document = mapDocument(event?.payload || null);
+        const departmentFilter = String(filter?.filter || "").match(/^dept=eq\.(.+)$/)?.[1];
+        if (departmentFilter && document?.dept !== departmentFilter) return;
+
+        callback({
+          eventType: events.some((name) => name.endsWith(".create")) ? "INSERT" : "CHANGE",
+          new: document,
+          payload: document,
+          raw: event,
+        });
+      });
     });
     this.unsubscribe = () => unsubscribers.forEach((unsubscribe) => unsubscribe?.());
     return this;
@@ -559,6 +575,7 @@ async function runRpc(name, args = {}) {
           last_maintenance_at: request.last_maintenance_at || null,
           maintenance_due_at: request.maintenance_due_at || null,
           maintenance_note: request.maintenance_note || null,
+          material_responsible: args.material_responsible_param || request.material_responsible || request.requester_name || null,
           created_by: request.requested_by || null,
           approved_by: userId,
           approved_by_name: displayName,
@@ -573,6 +590,7 @@ async function runRpc(name, args = {}) {
           reviewed_by: userId,
           reviewer_name: displayName,
           reviewed_at: isoNow(),
+          material_responsible: args.material_responsible_param || request.material_responsible || request.requester_name || null,
         });
 
         await makeLog({
@@ -581,7 +599,7 @@ async function runRpc(name, args = {}) {
           material_name: request.name,
           type: "approved",
           qty: Number(request.qty || 0),
-          detail: args.admin_note_param || "Approved material request",
+          detail: `${args.admin_note_param || "Approved material request"} · MR: ${args.material_responsible_param || request.material_responsible || request.requester_name || "Not assigned"}`,
           user_id: userId,
           user_name: displayName,
         });

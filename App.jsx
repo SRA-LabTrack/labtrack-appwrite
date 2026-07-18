@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FlaskConical,
   LayoutGrid,
@@ -21,6 +21,7 @@ import {
   Search,
   TrendingUp,
   CalendarClock,
+  CalendarDays,
   Bell,
   Truck,
   ShieldCheck,
@@ -36,9 +37,10 @@ const DEPARTMENTS = [
   "Variety Improvement and Pest Management (VIPM)",
 ];
 
-const USER_TAB_KEYS = ["inventory", "requests", "history", "support"];
+const VIPM_DEPARTMENT = "Variety Improvement and Pest Management (VIPM)";
+const USER_TAB_KEYS = ["inventory", "requests", "history", "cultureLogs", "support"];
 const ADMIN_TAB_KEYS = [
-  "overview", "approvals", "accounts", "departments", "forecast",
+  "overview", "approvals", "accounts", "departments", "cultureLogs", "forecast",
   "restockOrders", "suppliers", "alerts", "userActivity", "overdue",
   "maintenance", "reports", "logs", "support",
 ];
@@ -67,11 +69,23 @@ const LOGS_PAGE_SIZE = 10;
 const MATERIALS_PAGE_SIZE = 20;
 const REQUESTS_PAGE_SIZE = 10;
 const ACCOUNTS_PAGE_SIZE = 10;
-const CHAT_FETCH_LIMIT = 30;
+const CHAT_FETCH_LIMIT = 60;
+const CHAT_INBOX_LIMIT = 100;
 const OVERVIEW_ATTENTION_LIMIT = 60;
 const EXPIRING_SOON_DAYS = 30;
 const FORECAST_HISTORY_DAYS = 84;
 const MAINTENANCE_SOON_DAYS = 30;
+const CULTURE_FETCH_LIMIT = 100;
+const CULTURE_TYPES = [
+  { value: "fungi", label: "Fungi" },
+  { value: "bacteria", label: "Bacteria" },
+];
+const CULTURE_STATUS_OPTIONS = [
+  { value: "incubating", label: "Incubating" },
+  { value: "ready", label: "Ready" },
+  { value: "completed", label: "Completed" },
+  { value: "contaminated", label: "Contaminated" },
+];
 
 const CLEAR_TARGET_OPTIONS = [
   { value: "logs", label: "Logs only" },
@@ -131,6 +145,24 @@ function maintenanceStatusOf(material) {
 function isBorrowOverdue(item) {
   const days = daysUntil(item?.due_at);
   return days !== null && days < 0 && item?.status === "active";
+}
+
+function cultureStatusOf(culture) {
+  const savedStatus = String(culture?.status || "incubating").toLowerCase();
+  if (["completed", "contaminated", "ready"].includes(savedStatus)) return savedStatus;
+  const days = daysUntil(culture?.ready_at);
+  return days !== null && days <= 0 ? "ready" : "incubating";
+}
+
+function cultureTimingLabel(culture) {
+  const status = cultureStatusOf(culture);
+  if (status === "completed") return "Growth cycle completed";
+  if (status === "contaminated") return "Marked as contaminated";
+  const days = daysUntil(culture?.ready_at);
+  if (days === null) return "No readiness date";
+  if (days < 0) return `Ready for ${Math.abs(days)} day${Math.abs(days) === 1 ? "" : "s"}`;
+  if (days === 0) return "Ready today";
+  return `${days} day${days === 1 ? "" : "s"} until ready`;
 }
 
 function fmtDate(value) {
@@ -234,13 +266,68 @@ function Modal({ title, onClose, children }) {
   );
 }
 
-function MaterialCard({ material, onUse, onBorrow, onCorrect, onDelete, onTransfer, onMaintenance, readOnly = false, showDept = false }) {
+function DateInput({ value, onChange, min, max, ariaLabel = "Choose date" }) {
+  const inputRef = useRef(null);
+
+  function openCalendar() {
+    const input = inputRef.current;
+    if (!input) return;
+    if (typeof input.showPicker === "function") input.showPicker();
+    else input.focus();
+  }
+
+  return (
+    <div className="lt-date-input-wrap">
+      <input
+        ref={inputRef}
+        className="lt-input lt-date-input"
+        type="date"
+        value={value}
+        min={min}
+        max={max}
+        onChange={onChange}
+      />
+      <button type="button" className="lt-date-icon" onClick={openCalendar} aria-label={ariaLabel} title={ariaLabel}>
+        <CalendarDays size={17} />
+      </button>
+    </div>
+  );
+}
+
+function MaterialCard({
+  material,
+  onView,
+  onUse,
+  onBorrow,
+  onCorrect,
+  onDelete,
+  onTransfer,
+  onMaintenance,
+  showDept = false,
+}) {
   const status = statusOf(material);
   const expiryStatus = expiryStatusOf(material);
   const maintenanceStatus = maintenanceStatusOf(material);
-  const showActions = !readOnly || Boolean(onDelete);
+  const hasActions = Boolean(onView || onUse || onBorrow || onCorrect || onDelete || onTransfer || onMaintenance);
+
+  function stopAndRun(event, callback) {
+    event.stopPropagation();
+    callback?.(material);
+  }
+
   return (
-    <div className="lt-card">
+    <div
+      className={`lt-card ${onView ? "lt-card-clickable" : ""}`}
+      onClick={() => onView?.(material)}
+      role={onView ? "button" : undefined}
+      tabIndex={onView ? 0 : undefined}
+      aria-label={onView ? `View details for ${material.name}` : undefined}
+      onKeyDown={(event) => {
+        if (!onView || !["Enter", " "].includes(event.key)) return;
+        event.preventDefault();
+        onView(material);
+      }}
+    >
       <div className={`lt-card-bar lt-card-bar-${expiryStatus === "expired" ? "crit" : status}`} />
       <div className="lt-card-body">
         <div className="lt-perforation" />
@@ -266,6 +353,9 @@ function MaterialCard({ material, onUse, onBorrow, onCorrect, onDelete, onTransf
         <div className="lt-card-approval">
           <strong>Supplier:</strong> {material.supplier_name || "Not set"} · <strong>Price:</strong> ₱{displayQty(material.price_per_unit || 0)}/{material.unit}
         </div>
+        <div className="lt-card-approval lt-mr-line">
+          <UserCheck size={12} /> <strong>MR:</strong> {material.material_responsible || "Not assigned"}
+        </div>
         <div className="lt-safety-box">
           <div><ShieldCheck size={12} /> <strong>{material.hazard_level || "Low"} hazard</strong></div>
           <div><strong>PPE:</strong> {material.ppe_required || "Standard lab PPE"}</div>
@@ -283,38 +373,102 @@ function MaterialCard({ material, onUse, onBorrow, onCorrect, onDelete, onTransf
             Approved by {material.approved_by_name}{material.approved_at ? ` · ${fmtTime(material.approved_at)}` : ""}
           </div>
         )}
-        {showActions && (
+        {hasActions && (
           <div className="lt-card-actions">
-            {!readOnly && (
-              <>
-                <button className="lt-btn lt-btn-accent lt-btn-sm" onClick={() => onUse(material)}>
-                  Log usage
-                </button>
-                <button className="lt-btn lt-btn-ghost lt-btn-sm" onClick={() => onBorrow(material)}>
-                  <PackageOpen size={13} /> Borrow
-                </button>
-                <button className="lt-btn lt-btn-ghost lt-btn-sm" onClick={() => onCorrect(material)}>
-                  <Pencil size={13} /> Correct
-                </button>
-              </>
+            {onView && (
+              <button className="lt-btn lt-btn-ghost lt-btn-sm" onClick={(event) => stopAndRun(event, onView)}>
+                <Search size={13} /> Details
+              </button>
+            )}
+            {onUse && (
+              <button className="lt-btn lt-btn-accent lt-btn-sm" onClick={(event) => stopAndRun(event, onUse)}>
+                Log usage
+              </button>
+            )}
+            {onBorrow && (
+              <button className="lt-btn lt-btn-ghost lt-btn-sm" onClick={(event) => stopAndRun(event, onBorrow)}>
+                <PackageOpen size={13} /> Borrow
+              </button>
+            )}
+            {onCorrect && (
+              <button className="lt-btn lt-btn-ghost lt-btn-sm" onClick={(event) => stopAndRun(event, onCorrect)}>
+                <Pencil size={13} /> Correct
+              </button>
             )}
             {onTransfer && (
-              <button className="lt-btn lt-btn-ghost lt-btn-sm" onClick={() => onTransfer(material)}>
+              <button className="lt-btn lt-btn-ghost lt-btn-sm" onClick={(event) => stopAndRun(event, onTransfer)}>
                 <ArrowRightLeft size={13} /> Transfer
               </button>
             )}
             {onMaintenance && material.material_type === "non_consumable" && (
-              <button className="lt-btn lt-btn-ghost lt-btn-sm" onClick={() => onMaintenance(material)}>
+              <button className="lt-btn lt-btn-ghost lt-btn-sm" onClick={(event) => stopAndRun(event, onMaintenance)}>
                 <CalendarClock size={13} /> Maintenance
               </button>
             )}
             {onDelete && (
-              <button className="lt-btn lt-btn-danger lt-btn-sm" onClick={() => onDelete(material)}>
+              <button className="lt-btn lt-btn-danger lt-btn-sm" onClick={(event) => stopAndRun(event, onDelete)}>
                 <Trash2 size={13} /> Delete
               </button>
             )}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function MaterialDetails({ material }) {
+  const stockStatus = statusOf(material);
+  const expiryStatus = expiryStatusOf(material);
+  const maintenanceStatus = maintenanceStatusOf(material);
+
+  const detailRows = [
+    ["Department", material.dept || "Not specified"],
+    ["MR — Material Responsible", material.material_responsible || "Not assigned"],
+    ["Category", material.category || "Uncategorized"],
+    ["Material type", materialTypeLabel(material.material_type)],
+    ["Current quantity", `${displayQty(material.qty)} ${material.unit || ""}`.trim()],
+    ["Reorder threshold", `${displayQty(material.threshold)} ${material.unit || ""}`.trim()],
+    ["Stock status", statusLabel[stockStatus]],
+    ["Expiry", material.expires_at ? `${fmtDate(material.expires_at)} · ${expiryLabel[expiryStatus]}` : "No expiry date"],
+    ["Supplier", material.supplier_name || "Not set"],
+    ["Price per unit", `₱${displayQty(material.price_per_unit || 0)} / ${material.unit || "unit"}`],
+    ["Hazard level", material.hazard_level || "Low"],
+    ["Required PPE", material.ppe_required || "Standard lab PPE"],
+    ["Storage instruction", material.storage_instruction || "Not specified"],
+    ["Handling instruction", material.handling_instruction || "Not specified"],
+    ["Disposal instruction", material.disposal_instruction || "Not specified"],
+    ["Incompatible with", material.incompatible_with || "No incompatibility listed"],
+    ["Compatibility notes", material.compatibility_notes || "No compatibility notes"],
+    ["Condition", material.condition || "Good"],
+    ["Last maintenance", material.last_maintenance_at ? fmtDate(material.last_maintenance_at) : "Not set"],
+    ["Next maintenance", material.maintenance_due_at ? `${fmtDate(material.maintenance_due_at)} · ${maintenanceLabel[maintenanceStatus]}` : "Not set"],
+    ["Maintenance note", material.maintenance_note || "No maintenance note"],
+    ["Approved by", material.approved_by_name || "Not recorded"],
+    ["Approved at", material.approved_at ? fmtTime(material.approved_at) : "Not recorded"],
+    ["Last updated", fmtTime(material.updated)],
+  ];
+
+  return (
+    <div className="lt-material-details">
+      <div className="lt-material-details-hero">
+        <div>
+          <div className="lt-card-eyebrow">{material.category || "Uncategorized"} · {material.dept || "No department"}</div>
+          <div className="lt-material-details-name">{material.name}</div>
+          <div className="lt-material-details-sub">{materialTypeLabel(material.material_type)} material record</div>
+        </div>
+        <div className="lt-material-details-stock">
+          <span>{displayQty(material.qty)}</span>
+          <small>{material.unit || "units"}</small>
+        </div>
+      </div>
+      <div className="lt-material-details-grid">
+        {detailRows.map(([label, value]) => (
+          <div className="lt-material-detail-row" key={label}>
+            <span>{label}</span>
+            <strong>{value}</strong>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -408,6 +562,7 @@ function ChatPanel({ messages, currentRole, input, setInput, onSend, emptyText, 
         <input
           className="lt-input"
           placeholder={placeholder}
+          maxLength={5000}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && onSend()}
@@ -731,6 +886,86 @@ function MaintenanceTable({ rows, onMaintenance }) {
   );
 }
 
+
+function CultureLogGrid({ rows, onStatus, onDelete }) {
+  if (!rows.length) {
+    return (
+      <div className="lt-table-wrap">
+        <div className="lt-empty">No fungi or bacteria growth logs match this filter.</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="lt-culture-grid">
+      {rows.map((culture) => {
+        const status = cultureStatusOf(culture);
+        const progressDays = daysUntil(culture.ready_at);
+        return (
+          <article className={`lt-culture-card lt-culture-${status}`} key={culture.id}>
+            <div className="lt-culture-card-head">
+              <div>
+                <div className="lt-card-eyebrow">{culture.organism_type === "bacteria" ? "Bacteria culture" : "Fungi culture"}</div>
+                <div className="lt-culture-name">{culture.culture_name}</div>
+                <div className="lt-request-meta">{culture.strain || "Strain / isolate not specified"}</div>
+              </div>
+              <span className={`lt-tag lt-tag-${status === "incubating" ? "warning" : status === "contaminated" ? "critical" : status === "completed" ? "ok" : "approved"}`}>
+                {status}
+              </span>
+            </div>
+
+            <div className="lt-culture-timeline">
+              <div>
+                <span>Stored</span>
+                <strong>{culture.stored_at ? fmtDate(culture.stored_at) : "Not set"}</strong>
+              </div>
+              <div className="lt-culture-line" aria-hidden="true">
+                <i style={{ width: progressDays === null ? "0%" : progressDays <= 0 ? "100%" : "46%" }} />
+              </div>
+              <div>
+                <span>Expected ready</span>
+                <strong>{culture.ready_at ? fmtDate(culture.ready_at) : "Not set"}</strong>
+              </div>
+            </div>
+
+            <div className="lt-culture-ready">
+              <CalendarClock size={14} />
+              <strong>{cultureTimingLabel(culture)}</strong>
+            </div>
+
+            <div className="lt-culture-details">
+              <div><strong>Storage:</strong> {culture.storage_location || "Not specified"}</div>
+              <div><strong>Recorded by:</strong> {culture.recorded_by_name || "Unknown user"}</div>
+              {culture.notes && <div><strong>Notes:</strong> {culture.notes}</div>}
+            </div>
+
+            <div className="lt-culture-actions">
+              {status === "incubating" && (
+                <button className="lt-btn lt-btn-accent lt-btn-sm" onClick={() => onStatus(culture, "ready")}>
+                  Mark ready
+                </button>
+              )}
+              {status !== "completed" && status !== "contaminated" && (
+                <button className="lt-btn lt-btn-ghost lt-btn-sm" onClick={() => onStatus(culture, "completed")}>
+                  Complete
+                </button>
+              )}
+              {status !== "contaminated" && status !== "completed" && (
+                <button className="lt-btn lt-btn-ghost lt-btn-sm" onClick={() => onStatus(culture, "contaminated")}>
+                  Contaminated
+                </button>
+              )}
+              <button className="lt-btn lt-btn-danger lt-btn-sm" onClick={() => onDelete(culture)}>
+                <Trash2 size={13} /> Delete
+              </button>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
 function SetupNotice() {
   return (
     <div className="lt-login-wrap">
@@ -805,6 +1040,7 @@ export default function App() {
   const [userActivityRows, setUserActivityRows] = useState([]);
   const [overdueBorrows, setOverdueBorrows] = useState([]);
   const [maintenanceRows, setMaintenanceRows] = useState([]);
+  const [cultureLogs, setCultureLogs] = useState([]);
   const [dashboardSummary, setDashboardSummary] = useState(null);
 
   const [tab, setTab] = useState("inventory");
@@ -841,6 +1077,9 @@ export default function App() {
   const [overdueDeptFilter, setOverdueDeptFilter] = useState("All");
   const [maintenanceDeptFilter, setMaintenanceDeptFilter] = useState("All");
   const [maintenanceSearch, setMaintenanceSearch] = useState("");
+  const [cultureSearch, setCultureSearch] = useState("");
+  const [cultureTypeFilter, setCultureTypeFilter] = useState("All");
+  const [cultureStatusFilter, setCultureStatusFilter] = useState("All");
   const [reportType, setReportType] = useState("inventory");
   const [reportDeptFilter, setReportDeptFilter] = useState("All");
   const [exportFormat, setExportFormat] = useState("csv");
@@ -851,6 +1090,7 @@ export default function App() {
   const [activeAccount, setActiveAccount] = useState(null);
   const [activeBorrow, setActiveBorrow] = useState(null);
   const [activeLog, setActiveLog] = useState(null);
+  const [activeCulture, setActiveCulture] = useState(null);
   const [requestForm, setRequestForm] = useState({ name: "", category: "Chemical", material_type: "consumable", qty: "", unit: "", threshold: "", expires_at: "", purpose: "", price_per_unit: "", supplier_name: "", hazard_level: "Low", storage_instruction: "", handling_instruction: "", disposal_instruction: "", ppe_required: "", incompatible_with: "", compatibility_notes: "", condition: "Good", last_maintenance_at: "", maintenance_due_at: "", maintenance_note: "" });
   const [supplierForm, setSupplierForm] = useState({ dept: "All", name: "", contact_person: "", phone: "", email: "", material_category: "", material_name: "", price_per_unit: "", unit: "", notes: "" });
   const [transferForm, setTransferForm] = useState({ target_dept: DEPARTMENTS[1], qty: "", reason: "" });
@@ -859,8 +1099,22 @@ export default function App() {
   const [returnForm, setReturnForm] = useState({ qty: "", note: "" });
   const [correctForm, setCorrectForm] = useState({ qty: "", reason: "" });
   const [maintenanceForm, setMaintenanceForm] = useState({ condition: "Good", last_maintenance_at: "", maintenance_due_at: "", maintenance_note: "" });
+  const [cultureForm, setCultureForm] = useState({
+    organism_type: "fungi",
+    culture_name: "",
+    strain: "",
+    stored_at: new Date().toISOString().slice(0, 10),
+    ready_at: "",
+    storage_location: "",
+    notes: "",
+  });
   const [reviewNote, setReviewNote] = useState("");
+  const [materialResponsible, setMaterialResponsible] = useState("");
   const [chatInput, setChatInput] = useState("");
+  const [chatReadAt, setChatReadAt] = useState({});
+  const [browserNotificationPermission, setBrowserNotificationPermission] = useState(
+    typeof Notification !== "undefined" ? Notification.permission : "unsupported"
+  );
   const [clearForm, setClearForm] = useState({ target: "both", period: "week" });
 
   const [loading, setLoading] = useState(true);
@@ -888,6 +1142,8 @@ export default function App() {
       ".lt-section-title",
       ".lt-pagination",
       ".lt-maintenance-form",
+      ".lt-culture-card",
+      ".lt-culture-summary",
     ].join(", ");
 
     const seen = new WeakSet();
@@ -957,6 +1213,26 @@ export default function App() {
     });
   }, []);
 
+  const loadChats = useCallback(async () => {
+    if (!supabase || !profile || profile.status !== "approved") return;
+
+    let query = supabase
+      .from("chats")
+      .select("id, dept, sender_id, sender_name, sender_role, text, timestamp")
+      .order("timestamp", { ascending: false })
+      .limit(isAdmin ? CHAT_INBOX_LIMIT : CHAT_FETCH_LIMIT);
+
+    if (!isAdmin) query = query.eq("dept", userDept);
+
+    const { data, error } = await query;
+    if (error) {
+      setFormError(error.message);
+      return;
+    }
+
+    setChats([...(data || [])].reverse());
+  }, [profile, isAdmin, userDept]);
+
   const loadData = useCallback(async () => {
     if (!supabase || !profile || profile.status !== "approved") return;
 
@@ -991,9 +1267,8 @@ export default function App() {
     const shouldLoadMaterials = (!isAdmin && tab === "inventory") || (isAdmin && (tab === "overview" || tab === "departments" || (tab === "reports" && reportType === "inventory")));
     const shouldLoadRequests = (!isAdmin && tab === "requests") || (isAdmin && tab === "approvals");
     const shouldLoadLogs = (!isAdmin && tab === "history") || (isAdmin && (tab === "logs" || (tab === "reports" && reportType === "usage")));
-    const shouldLoadChats = tab === "support";
     const shouldLoadAccounts = isAdmin && tab === "accounts";
-    const shouldLoadBorrows = !isAdmin && tab === "inventory";
+    const shouldLoadBorrows = (!isAdmin && tab === "inventory") || (isAdmin && tab === "departments");
     const shouldLoadForecast = isAdmin && (tab === "overview" || tab === "forecast");
     const shouldLoadSummary = isAdmin && tab === "overview";
     const shouldLoadNotifications = isAdmin && (tab === "overview" || tab === "alerts" || (tab === "reports" && reportType === "alerts"));
@@ -1002,6 +1277,7 @@ export default function App() {
     const shouldLoadUserActivity = isAdmin && ["overview", "userActivity", "reports"].includes(tab);
     const shouldLoadOverdueBorrows = isAdmin && ["overview", "overdue", "reports"].includes(tab);
     const shouldLoadMaintenance = isAdmin && ["overview", "maintenance", "reports"].includes(tab);
+    const shouldLoadCultures = tab === "cultureLogs" && (isAdmin || userDept === VIPM_DEPARTMENT);
 
     if (shouldLoadSummary) {
       run(supabase.rpc("get_dashboard_summary"), (res) => {
@@ -1061,7 +1337,7 @@ export default function App() {
       const term = tab === "overview" ? "" : cleanSearchTerm(searchMaterials);
       let materialsQuery = supabase
         .from("materials")
-        .select("id, dept, name, category, material_type, qty, unit, threshold, expires_at, price_per_unit, supplier_name, hazard_level, storage_instruction, handling_instruction, disposal_instruction, ppe_required, incompatible_with, compatibility_notes, condition, last_maintenance_at, maintenance_due_at, maintenance_note, updated, approved_by_name, approved_at", { count: "exact" })
+        .select("id, dept, name, category, material_type, qty, unit, threshold, expires_at, price_per_unit, supplier_name, hazard_level, storage_instruction, handling_instruction, disposal_instruction, ppe_required, incompatible_with, compatibility_notes, condition, last_maintenance_at, maintenance_due_at, maintenance_note, material_responsible, updated, approved_by_name, approved_at", { count: "exact" })
         .order("updated", { ascending: false })
         .range(materialStart, materialEnd);
 
@@ -1090,7 +1366,7 @@ export default function App() {
       const term = cleanSearchTerm(searchRequests);
       let requestsQuery = supabase
         .from("item_requests")
-        .select("id, dept, name, category, material_type, qty, unit, threshold, expires_at, purpose, price_per_unit, supplier_name, hazard_level, storage_instruction, handling_instruction, disposal_instruction, ppe_required, incompatible_with, compatibility_notes, condition, last_maintenance_at, maintenance_due_at, maintenance_note, requested_by, requester_name, status, admin_note, reviewed_by, reviewer_name, reviewed_at, created_at", { count: "exact" })
+        .select("id, dept, name, category, material_type, qty, unit, threshold, expires_at, purpose, price_per_unit, supplier_name, hazard_level, storage_instruction, handling_instruction, disposal_instruction, ppe_required, incompatible_with, compatibility_notes, condition, last_maintenance_at, maintenance_due_at, maintenance_note, material_responsible, requested_by, requester_name, status, admin_note, reviewed_by, reviewer_name, reviewed_at, created_at", { count: "exact" })
         .order("created_at", { ascending: false })
         .range(requestStart, requestStart + REQUESTS_PAGE_SIZE - 1);
 
@@ -1134,21 +1410,6 @@ export default function App() {
         if (res.error) throw res.error;
         setLogs(res.data || []);
         setLogsTotal(res.count ?? (res.data || []).length);
-      });
-    }
-
-    if (shouldLoadChats) {
-      const targetDept = isAdmin ? adminActiveDept : userDept;
-      let chatsQuery = supabase
-        .from("chats")
-        .select("id, dept, sender_id, sender_name, sender_role, text, timestamp")
-        .eq("dept", targetDept)
-        .order("timestamp", { ascending: false })
-        .limit(CHAT_FETCH_LIMIT);
-
-      run(chatsQuery, (res) => {
-        if (res.error) throw res.error;
-        setChats([...(res.data || [])].reverse());
       });
     }
 
@@ -1239,6 +1500,21 @@ export default function App() {
       });
     }
 
+    if (shouldLoadCultures) {
+      run(
+        supabase
+          .from("culture_logs")
+          .select("id, dept, organism_type, culture_name, strain, stored_at, ready_at, status, storage_location, notes, recorded_by, recorded_by_name, created_at, updated_at")
+          .eq("dept", VIPM_DEPARTMENT)
+          .order("ready_at", { ascending: true })
+          .limit(CULTURE_FETCH_LIMIT),
+        (res) => {
+          if (res.error) throw res.error;
+          setCultureLogs(res.data || []);
+        }
+      );
+    }
+
 
     try {
       await Promise.all(jobs);
@@ -1319,6 +1595,7 @@ export default function App() {
       setUserActivityRows([]);
       setOverdueBorrows([]);
       setMaintenanceRows([]);
+      setCultureLogs([]);
       setDashboardSummary(null);
       setLogsTotal(0);
       setMaterialsTotal(0);
@@ -1338,22 +1615,122 @@ export default function App() {
 
 
   useEffect(() => {
-    if (!supabase || !profile || profile.status !== "approved" || tab !== "support") return;
+    if (!profile || profile.status !== "approved") return;
+    loadChats();
+  }, [profile, loadChats]);
 
-    const targetDept = isAdmin ? adminActiveDept : userDept;
+  useEffect(() => {
+    if (!session?.user?.id || typeof window === "undefined") {
+      setChatReadAt({});
+      return;
+    }
+    try {
+      const saved = JSON.parse(localStorage.getItem(`labtrack-chat-read:${session.user.id}`) || "{}");
+      setChatReadAt(saved && typeof saved === "object" ? saved : {});
+    } catch {
+      setChatReadAt({});
+    }
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    if (!supabase || !profile || profile.status !== "approved") return;
+
+    const chatFilter = isAdmin ? undefined : `dept=eq.${userDept}`;
     const channel = supabase
-      .channel(`labtrack-chat-${targetDept}`)
+      .channel(`labtrack-chat-notifications-${session?.user?.id || "guest"}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "chats", filter: `dept=eq.${targetDept}` },
-        loadData
+        { event: "INSERT", schema: "public", table: "chats", filter: chatFilter },
+        (event) => {
+          const message = event?.new || event?.payload || null;
+          if (!message) {
+            loadChats();
+            return;
+          }
+
+          setChats((current) => {
+            const next = [...current.filter((item) => item.id !== message.id), message]
+              .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            return next.slice(-(isAdmin ? CHAT_INBOX_LIMIT : CHAT_FETCH_LIMIT));
+          });
+
+          const incomingRole = isAdmin ? "user" : "admin";
+          const relevant = isAdmin || message.dept === userDept;
+          const conversationOpen = tab === "support" && (!isAdmin || adminActiveDept === message.dept);
+          if (!relevant || message.sender_role !== incomingRole || conversationOpen) return;
+
+          const source = isAdmin ? message.dept : "LabTrack admin";
+          setAppMessage(`New support message from ${source}: ${String(message.text || "").slice(0, 90)}`);
+
+          if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+            const notice = new Notification(`LabTrack support · ${source}`, {
+              body: String(message.text || "New support message"),
+              tag: `labtrack-chat-${message.dept}`,
+            });
+            notice.onclick = () => {
+              window.focus();
+              if (isAdmin) setAdminActiveDept(message.dept);
+              setTab("support");
+              notice.close();
+            };
+          }
+        }
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [profile, tab, isAdmin, adminActiveDept, userDept, loadData]);
+  }, [profile, isAdmin, userDept, session?.user?.id, tab, adminActiveDept, loadChats]);
+
+  const markChatRead = useCallback((department) => {
+    if (!department || !session?.user?.id) return;
+    const nextTimestamp = new Date().toISOString();
+    setChatReadAt((current) => {
+      const next = { ...current, [department]: nextTimestamp };
+      try {
+        localStorage.setItem(`labtrack-chat-read:${session.user.id}`, JSON.stringify(next));
+      } catch {
+        // Local storage may be unavailable in private browsing.
+      }
+      return next;
+    });
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    if (tab !== "support") return;
+    markChatRead(isAdmin ? adminActiveDept : userDept);
+  }, [tab, isAdmin, adminActiveDept, userDept, chats, markChatRead]);
+
+  async function enableChatNotifications() {
+    if (typeof Notification === "undefined") {
+      setAppMessage("Browser notifications are not supported on this device.");
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    setBrowserNotificationPermission(permission);
+    setAppMessage(permission === "granted" ? "Support notifications enabled." : "Browser notifications were not enabled. In-app badges will still work.");
+  }
+
+  const unreadChatByDept = useMemo(() => {
+    const counts = Object.fromEntries(DEPARTMENTS.map((department) => [department, 0]));
+    const incomingRole = isAdmin ? "user" : "admin";
+    chats.forEach((message) => {
+      if (message.sender_role !== incomingRole) return;
+      if (!isAdmin && message.dept !== userDept) return;
+      const readAt = chatReadAt[message.dept];
+      if (!readAt || new Date(message.timestamp) > new Date(readAt)) {
+        counts[message.dept] = (counts[message.dept] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [chats, chatReadAt, isAdmin, userDept]);
+
+  const totalUnreadChats = Object.values(unreadChatByDept).reduce((sum, count) => sum + count, 0);
+
+  useEffect(() => {
+    document.title = totalUnreadChats > 0 ? `(${totalUnreadChats}) LabTrack` : "LabTrack";
+  }, [totalUnreadChats]);
 
   const deptMaterials = useMemo(
     () => materials.filter((material) => material.dept === userDept),
@@ -1392,6 +1769,29 @@ export default function App() {
     () => chats.filter((chat) => chat.dept === adminActiveDept),
     [chats, adminActiveDept]
   );
+  const filteredCultureLogs = useMemo(() => {
+    const term = cleanSearchTerm(cultureSearch).toLowerCase();
+    return cultureLogs
+      .filter((culture) => {
+        const matchesType = cultureTypeFilter === "All" || culture.organism_type === cultureTypeFilter;
+        const status = cultureStatusOf(culture);
+        const matchesStatus = cultureStatusFilter === "All" || status === cultureStatusFilter;
+        const haystack = `${culture.culture_name || ""} ${culture.strain || ""} ${culture.storage_location || ""} ${culture.notes || ""}`.toLowerCase();
+        return matchesType && matchesStatus && (!term || haystack.includes(term));
+      })
+      .sort((a, b) => {
+        const statusOrder = { ready: 0, incubating: 1, contaminated: 2, completed: 3 };
+        const statusDelta = (statusOrder[cultureStatusOf(a)] ?? 9) - (statusOrder[cultureStatusOf(b)] ?? 9);
+        if (statusDelta !== 0) return statusDelta;
+        return String(a.ready_at || "").localeCompare(String(b.ready_at || ""));
+      });
+  }, [cultureLogs, cultureSearch, cultureTypeFilter, cultureStatusFilter]);
+  const cultureSummary = useMemo(() => ({
+    total: cultureLogs.length,
+    fungi: cultureLogs.filter((culture) => culture.organism_type === "fungi").length,
+    bacteria: cultureLogs.filter((culture) => culture.organism_type === "bacteria").length,
+    ready: cultureLogs.filter((culture) => cultureStatusOf(culture) === "ready").length,
+  }), [cultureLogs]);
   const lowInDept = deptMaterials.filter((material) => statusOf(material) !== "ok" || ["expired", "expiring"].includes(expiryStatusOf(material))).length;
   const filteredForecastRows = useMemo(() => {
     const term = cleanSearchTerm(forecastSearch).toLowerCase();
@@ -1421,7 +1821,10 @@ export default function App() {
     { key: "inventory", label: "Inventory", icon: LayoutGrid, badge: lowInDept },
     { key: "requests", label: "Requests", icon: AlertTriangle, badge: pendingRequestsTotal },
     { key: "history", label: "History", icon: HistoryIcon },
-    { key: "support", label: "Support", icon: MessageCircle },
+    ...(userDept === VIPM_DEPARTMENT
+      ? [{ key: "cultureLogs", label: "Fungi & Bacteria", icon: Beaker, badge: cultureSummary.ready }]
+      : []),
+    { key: "support", label: "Support", icon: MessageCircle, badge: totalUnreadChats },
   ];
 
   const adminTabs = [
@@ -1429,6 +1832,7 @@ export default function App() {
     { key: "approvals", label: "Materials", icon: AlertTriangle, badge: pendingRequestsTotal },
     { key: "accounts", label: "Accounts", icon: UserCheck, badge: pendingAccountsTotal },
     { key: "departments", label: "Inventory", icon: Building2 },
+    { key: "cultureLogs", label: "Fungi & Bacteria", icon: Beaker, badge: cultureSummary.ready },
     { key: "forecast", label: "Forecast", icon: TrendingUp, badge: forecastRows.filter((row) => ["expired", "critical", "low", "high_usage", "expiring"].includes(String(row.priority).toLowerCase())).length },
     { key: "restockOrders", label: "Restock", icon: Truck, badge: openRestockCount },
     { key: "suppliers", label: "Suppliers", icon: DollarSign, badge: pendingSuppliersTotal },
@@ -1438,7 +1842,7 @@ export default function App() {
     { key: "maintenance", label: "Maintenance", icon: CalendarClock, badge: maintenanceDueCount },
     { key: "reports", label: "Reports", icon: FileSpreadsheet },
     { key: "logs", label: "Logs", icon: ClipboardList },
-    { key: "support", label: "Support", icon: MessageCircle },
+    { key: "support", label: "Support", icon: MessageCircle, badge: totalUnreadChats },
   ];
 
   function switchTab(nextTab) {
@@ -1452,6 +1856,7 @@ export default function App() {
     if (nextTab !== "forecast") setForecastSearch("");
     if (nextTab !== "restockOrders") setRestockSearch("");
     if (nextTab !== "suppliers") setSupplierSearch("");
+    if (nextTab !== "cultureLogs") setCultureSearch("");
   }
 
   useEffect(() => {
@@ -1571,6 +1976,7 @@ export default function App() {
     setActiveLog(log);
     setFormError("");
     setReviewNote("");
+    setMaterialResponsible(mode === "approve" ? (request?.material_responsible || request?.requester_name || "") : "");
     if (mode === "request") setRequestForm({ name: "", category: "Chemical", material_type: "consumable", qty: "", unit: "", threshold: "", expires_at: "", purpose: "", price_per_unit: "", supplier_name: "", hazard_level: "Low", storage_instruction: "", handling_instruction: "", disposal_instruction: "", ppe_required: "", incompatible_with: "", compatibility_notes: "", condition: "Good", last_maintenance_at: "", maintenance_due_at: "", maintenance_note: "" });
     if (mode === "supplier") setSupplierForm({ dept: "All", name: "", contact_person: "", phone: "", email: "", material_category: "", material_name: "", price_per_unit: "", unit: "", notes: "" });
     if (mode === "transfer") setTransferForm({ target_dept: DEPARTMENTS.find((d) => d !== material?.dept) || DEPARTMENTS[0], qty: "", reason: "" });
@@ -1579,6 +1985,15 @@ export default function App() {
     if (mode === "return") setReturnForm({ qty: borrow ? String(Number(borrow.qty_borrowed || 0) - Number(borrow.qty_returned || 0)) : "", note: "" });
     if (mode === "correct") setCorrectForm({ qty: material ? String(material.qty) : "", reason: "" });
     if (mode === "maintenance") setMaintenanceForm({ condition: material?.condition || "Good", last_maintenance_at: material?.last_maintenance_at || "", maintenance_due_at: material?.maintenance_due_at || "", maintenance_note: material?.maintenance_note || "" });
+    if (mode === "culture") setCultureForm({
+      organism_type: "fungi",
+      culture_name: "",
+      strain: "",
+      stored_at: new Date().toISOString().slice(0, 10),
+      ready_at: "",
+      storage_location: "",
+      notes: "",
+    });
     if (mode === "cleanup") setClearForm({ target: "both", period: "week" });
   }
 
@@ -1589,8 +2004,10 @@ export default function App() {
     setActiveAccount(null);
     setActiveBorrow(null);
     setActiveLog(null);
+    setActiveCulture(null);
     setFormError("");
     setReviewNote("");
+    setMaterialResponsible("");
   }
 
   async function submitItemRequest() {
@@ -1806,11 +2223,16 @@ export default function App() {
   }
 
   async function approveRequest(request) {
+    if (!materialResponsible.trim()) {
+      setFormError("Assign an MR (Material Responsible) before approving this material.");
+      return;
+    }
     setBusy(true);
     setFormError("");
     const { error } = await supabase.rpc("approve_item_request", {
       request_id_param: request.id,
       admin_note_param: reviewNote.trim() || "Approved by admin",
+      material_responsible_param: materialResponsible.trim(),
     });
     setBusy(false);
     if (error) {
@@ -1947,7 +2369,7 @@ export default function App() {
       setFormError(error.message);
       return;
     }
-    loadData();
+    loadChats();
   }
 
   async function clearSelectedActivity() {
@@ -2178,6 +2600,85 @@ export default function App() {
     loadData();
   }
 
+  async function submitCultureLog() {
+    const cultureName = cultureForm.culture_name.trim();
+    if (!cultureName) {
+      setFormError("Enter the fungi or bacteria culture name.");
+      return;
+    }
+    if (!cultureForm.stored_at || !cultureForm.ready_at) {
+      setFormError("Choose both the storage date and expected ready date.");
+      return;
+    }
+    if (cultureForm.ready_at < cultureForm.stored_at) {
+      setFormError("The expected ready date cannot be earlier than the storage date.");
+      return;
+    }
+
+    setBusy(true);
+    setFormError("");
+    const now = new Date().toISOString();
+    const { error } = await supabase.from("culture_logs").insert({
+      dept: VIPM_DEPARTMENT,
+      organism_type: cultureForm.organism_type === "bacteria" ? "bacteria" : "fungi",
+      culture_name: cultureName,
+      strain: cultureForm.strain.trim() || null,
+      stored_at: cultureForm.stored_at,
+      ready_at: cultureForm.ready_at,
+      status: "incubating",
+      storage_location: cultureForm.storage_location.trim() || null,
+      notes: cultureForm.notes.trim() || null,
+      recorded_by: session.user.id,
+      recorded_by_name: displayName,
+      created_at: now,
+      updated_at: now,
+    });
+    setBusy(false);
+
+    if (error) {
+      setFormError(error.message);
+      return;
+    }
+    closeModal();
+    setAppMessage(`${cultureForm.organism_type === "bacteria" ? "Bacteria" : "Fungi"} growth log added.`);
+    loadData();
+  }
+
+  async function updateCultureStatus(culture, status) {
+    setBusy(true);
+    setFormError("");
+    const { error } = await supabase
+      .from("culture_logs")
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq("id", culture.id);
+    setBusy(false);
+
+    if (error) {
+      setFormError(error.message);
+      return;
+    }
+    setAppMessage(`${culture.culture_name} marked as ${status}.`);
+    loadData();
+  }
+
+  async function deleteCultureLog(culture) {
+    if (!window.confirm(`Delete the culture log for "${culture.culture_name}"?`)) return;
+    setBusy(true);
+    setFormError("");
+    const { error } = await supabase
+      .from("culture_logs")
+      .delete()
+      .eq("id", culture.id);
+    setBusy(false);
+
+    if (error) {
+      setFormError(error.message);
+      return;
+    }
+    setAppMessage("Culture log deleted.");
+    loadData();
+  }
+
   function printReport(title, rows) {
     if (!rows.length) {
       window.alert("No records loaded for this report. Try changing the department/filter or click Refresh current page.");
@@ -2245,6 +2746,7 @@ export default function App() {
     maintenance_due_at: m.maintenance_due_at || "",
     maintenance_note: m.maintenance_note || "",
     updated: m.updated,
+    material_responsible: m.material_responsible || "",
     approved_by: m.approved_by_name || ""
   }));
 
@@ -2269,6 +2771,7 @@ export default function App() {
     maintenance_due_at: r.maintenance_due_at || "",
     maintenance_note: r.maintenance_note || "",
     requested_by: r.requester_name,
+    material_responsible: r.material_responsible || "",
     status: r.status,
     admin_note: r.admin_note || "",
     reviewer: r.reviewer_name || "",
@@ -2492,6 +2995,7 @@ export default function App() {
         .lt-dot { width:7px; height:7px; border-radius:50%; display:inline-block; flex:0 0 auto; }
         .lt-dot-ok { background:var(--ok); } .lt-dot-warn { background:var(--warn); } .lt-dot-crit { background:var(--crit); }
         .lt-card-approval { font-size:11px; color:var(--ink-soft); margin-top:8px; line-height:1.35; }
+        .lt-mr-line { display:flex; align-items:center; gap:5px; color:var(--ink); padding:7px 8px; border:1px solid var(--paper-line); background:var(--paper); border-radius:4px; }
         .lt-card-actions { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
         .lt-add-card { border:1px dashed var(--border); border-radius:4px; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:6px; color:var(--ink-soft); background:rgba(255,255,255,.35); cursor:pointer; min-height:170px; font-size:13px; font-weight:700; }
         .lt-add-card:hover { border-color:var(--accent); color:var(--accent); background:#fff; }
@@ -2540,6 +3044,11 @@ export default function App() {
         .lt-chat-row { display:flex; flex-direction:column; } .lt-chat-row.mine { align-items:flex-end; } .lt-chat-row.theirs { align-items:flex-start; }
         .lt-chat-input-bar { display:flex; gap:8px; padding:12px; border-top:1px solid var(--border); }
         .lt-chat-input-bar input { flex:1; min-width:0; }
+        .lt-date-input-wrap { position:relative; width:100%; }
+        .lt-date-input { padding-right:44px; }
+        .lt-date-input::-webkit-calendar-picker-indicator { opacity:0; width:42px; height:100%; cursor:pointer; }
+        .lt-date-icon { position:absolute; right:4px; top:50%; transform:translateY(-50%); width:36px; height:34px; display:grid; place-items:center; border:0; border-left:1px solid var(--paper-line); background:transparent; color:var(--accent); cursor:pointer; border-radius:0 4px 4px 0; }
+        .lt-date-icon:hover { background:var(--accent-soft); }
         .lt-empty { color:var(--ink-soft); font-size:13px; padding:24px; text-align:center; }
         .lt-pagination { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-top:10px; font-size:12px; color:var(--ink-soft); }
         .lt-pagination-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
@@ -2562,7 +3071,8 @@ export default function App() {
         .lt-conv-item { width:100%; text-align:left; padding:12px 14px; border:none; background:#fff; border-bottom:1px solid var(--paper-line); cursor:pointer; }
         .lt-conv-item:last-child { border-bottom:none; }
         .lt-conv-item.active { background:var(--accent-soft); }
-        .lt-conv-dept { font-weight:700; font-size:13px; }
+        .lt-conv-dept { font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+        .lt-conv-unread { min-width:20px; height:20px; padding:0 6px; display:inline-grid; place-items:center; border-radius:999px; background:var(--crit); color:#fff; font-size:10px; font-weight:800; }
         .lt-conv-preview { font-size:12px; color:var(--ink-soft); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .lt-request-list { display:grid; gap:12px; }
         .lt-request-card { background:rgba(255,255,255,.94); border:1px solid var(--border); border-radius:12px; padding:14px; display:grid; gap:8px; transition:transform .45s cubic-bezier(.22,1,.36,1), box-shadow .45s cubic-bezier(.22,1,.36,1); }
@@ -2571,6 +3081,43 @@ export default function App() {
         .lt-request-title { font-family:'Space Grotesk',sans-serif; font-weight:700; }
         .lt-request-meta { font-size:12px; color:var(--ink-soft); line-height:1.45; }
         .lt-request-actions { display:flex; gap:8px; flex-wrap:wrap; }
+
+        .lt-table-wrap, .lt-chat-wrap, .lt-conv-list, .lt-maintenance-form, .lt-note {
+          transition:transform .48s cubic-bezier(.22,1,.36,1), box-shadow .48s cubic-bezier(.22,1,.36,1), border-color .28s ease;
+          transform-origin:center;
+        }
+        .lt-table-wrap:hover, .lt-chat-wrap:hover, .lt-conv-list:hover, .lt-maintenance-form:hover, .lt-note:hover {
+          transform:translateY(-2px) scale(1.003);
+          box-shadow:0 16px 38px rgba(30,42,40,.075);
+          border-color:rgba(91,107,102,.32);
+        }
+
+        .lt-culture-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr)); gap:14px; }
+        .lt-culture-card {
+          position:relative; overflow:hidden; background:linear-gradient(145deg,rgba(255,255,255,.98),rgba(246,249,245,.94));
+          border:1px solid var(--border); border-radius:16px; padding:16px; display:grid; gap:13px;
+          transition:transform .5s cubic-bezier(.22,1,.36,1), box-shadow .5s cubic-bezier(.22,1,.36,1), border-color .3s ease;
+        }
+        .lt-culture-card::before { content:""; position:absolute; inset:0 auto 0 0; width:5px; background:var(--warn); }
+        .lt-culture-ready::before { background:var(--ok); }
+        .lt-culture-contaminated::before { background:var(--crit); }
+        .lt-culture-completed::before { background:var(--accent); }
+        .lt-culture-card:hover { transform:translateY(-5px) scale(1.008); box-shadow:0 20px 48px rgba(30,42,40,.11); border-color:rgba(91,107,102,.34); }
+        .lt-culture-card-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+        .lt-culture-name { font-family:'Space Grotesk',sans-serif; font-size:18px; font-weight:700; margin-top:4px; overflow-wrap:anywhere; }
+        .lt-culture-timeline { display:grid; grid-template-columns:auto minmax(54px,1fr) auto; align-items:center; gap:10px; padding:11px; border-radius:10px; background:rgba(255,255,255,.78); border:1px solid var(--paper-line); }
+        .lt-culture-timeline > div:not(.lt-culture-line) { display:grid; gap:2px; }
+        .lt-culture-timeline span { font-size:9px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-soft); }
+        .lt-culture-timeline strong { font-size:11px; white-space:nowrap; }
+        .lt-culture-line { height:5px; border-radius:999px; background:var(--paper-line); overflow:hidden; }
+        .lt-culture-line i { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--accent),var(--ok)); transition:width .6s cubic-bezier(.22,1,.36,1); }
+        .lt-culture-ready { display:flex; align-items:center; gap:7px; color:var(--ink); font-size:12px; }
+        .lt-culture-details { display:grid; gap:5px; color:var(--ink-soft); font-size:12px; line-height:1.45; }
+        .lt-culture-actions { display:flex; flex-wrap:wrap; gap:7px; padding-top:3px; border-top:1px dashed var(--border); }
+        .lt-culture-filters { padding:12px; border:1px solid var(--border); border-radius:12px; background:rgba(255,255,255,.72); }
+        .lt-culture-filters .lt-select { min-width:170px; }
+        .lt-optional { text-transform:none; letter-spacing:0; font-weight:500; opacity:.8; }
+
         .lt-icon-btn { background:none; border:none; cursor:pointer; color:var(--ink-soft); display:flex; }
         .lt-modal-overlay { position:fixed; inset:0; background:rgba(30,42,40,.45); display:flex; align-items:center; justify-content:center; z-index:50; padding:16px; }
         .lt-modal { width:100%; max-width:430px; max-height:calc(100dvh - 32px); overflow:auto; background:rgba(255,255,255,.98); border-radius:16px; box-shadow:0 32px 90px rgba(30,42,40,.22); animation:lt-modal-in .38s cubic-bezier(.22,1,.36,1) both; }
@@ -2609,8 +3156,56 @@ export default function App() {
         }
         @media (prefers-reduced-motion: reduce) {
           html, body, #root { scroll-behavior:auto; }
-          .lt-btn, .lt-card, .lt-stat-card, .lt-request-card, .lt-sidebar-tab { transition:none !important; }
+          .lt-btn, .lt-card, .lt-stat-card, .lt-request-card, .lt-culture-card, .lt-table-wrap, .lt-chat-wrap, .lt-conv-list, .lt-maintenance-form, .lt-note, .lt-sidebar-tab { transition:none !important; }
         }
+
+        .lt-card-clickable { cursor:pointer; outline:none; }
+        .lt-card-clickable:hover,
+        .lt-card-clickable:focus-visible { transform:translateY(-7px) scale(1.015); box-shadow:0 24px 58px rgba(30,42,40,.14); border-color:var(--accent); }
+        .lt-card-clickable:focus-visible { box-shadow:0 0 0 3px var(--accent-soft), 0 24px 58px rgba(30,42,40,.14); }
+
+        .lt-material-details { display:grid; gap:16px; }
+        .lt-material-details-hero { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:18px; border:1px solid var(--border); border-radius:14px; background:linear-gradient(135deg,rgba(255,255,255,.98),var(--paper)); }
+        .lt-material-details-name { font-family:'Space Grotesk',sans-serif; font-size:clamp(20px,4vw,28px); font-weight:800; line-height:1.15; margin-top:6px; overflow-wrap:anywhere; }
+        .lt-material-details-sub { color:var(--ink-soft); font-size:12px; margin-top:5px; }
+        .lt-material-details-stock { min-width:110px; padding:13px 15px; border-radius:12px; background:var(--accent); color:#fff; text-align:center; box-shadow:0 12px 28px rgba(30,42,40,.13); }
+        .lt-material-details-stock span { display:block; font-family:'JetBrains Mono',monospace; font-size:25px; font-weight:800; }
+        .lt-material-details-stock small { display:block; margin-top:3px; opacity:.88; }
+        .lt-material-details-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+        .lt-material-detail-row { min-width:0; padding:11px 12px; border:1px solid var(--paper-line); border-radius:9px; background:rgba(255,255,255,.88); transition:transform .3s cubic-bezier(.22,1,.36,1), box-shadow .3s ease, border-color .3s ease; }
+        .lt-material-detail-row:hover { transform:translateY(-2px) scale(1.008); border-color:var(--border); box-shadow:0 8px 20px rgba(30,42,40,.06); }
+        .lt-material-detail-row span { display:block; color:var(--ink-soft); font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; margin-bottom:4px; }
+        .lt-material-detail-row strong { display:block; font-size:12.5px; line-height:1.45; overflow-wrap:anywhere; }
+        .lt-material-details-actions { display:flex; gap:8px; flex-wrap:wrap; padding-top:14px; border-top:1px dashed var(--border); }
+
+        .lt-table-wrap,
+        .lt-chat-wrap,
+        .lt-conv-list,
+        .lt-maintenance-form,
+        .lt-note,
+        .lt-filter-row {
+          transition:transform .45s cubic-bezier(.22,1,.36,1), box-shadow .45s cubic-bezier(.22,1,.36,1), border-color .3s ease;
+          transform-origin:center top;
+        }
+        .lt-table-wrap:hover,
+        .lt-chat-wrap:hover,
+        .lt-conv-list:hover,
+        .lt-maintenance-form:hover,
+        .lt-note:hover {
+          transform:translateY(-3px) scale(1.004);
+          box-shadow:0 17px 40px rgba(30,42,40,.09);
+          border-color:rgba(91,107,102,.34);
+        }
+        .lt-stat-card:hover { transform:translateY(-5px) scale(1.018); box-shadow:0 20px 46px rgba(30,42,40,.12); }
+        .lt-request-card:hover { transform:translateY(-4px) scale(1.007); box-shadow:0 17px 40px rgba(30,42,40,.10); }
+        .lt-add-card { transition:transform .42s cubic-bezier(.22,1,.36,1), box-shadow .42s ease, background .3s ease, border-color .3s ease; }
+        .lt-add-card:hover { transform:translateY(-5px) scale(1.012); box-shadow:0 16px 38px rgba(30,42,40,.09); }
+        .lt-subtab { transition:transform .3s cubic-bezier(.22,1,.36,1), box-shadow .3s ease, background .25s ease; }
+        .lt-subtab:hover { transform:translateY(-2px) scale(1.025); box-shadow:0 8px 20px rgba(30,42,40,.08); }
+        .lt-table tbody tr { transition:background .22s ease, transform .22s ease; }
+        .lt-table tbody tr:hover { background:var(--paper); }
+        .lt-date-icon { transition:transform .25s cubic-bezier(.22,1,.36,1), background .25s ease; }
+        .lt-date-icon:hover { transform:translateY(-50%) scale(1.09); }
 
         @media (max-width: 860px) {
           .lt-shell { flex-direction:column; }
@@ -2634,6 +3229,17 @@ export default function App() {
           .lt-bubble { max-width:92%; }
           .lt-modal-overlay { padding:10px; align-items:flex-end; }
           .lt-modal { max-height:92dvh; }
+          .lt-culture-timeline { grid-template-columns:1fr; }
+          .lt-culture-line { width:100%; }
+          .lt-culture-actions .lt-btn { flex:1 1 120px; }
+          .lt-material-details-hero { align-items:flex-start; flex-direction:column; }
+          .lt-material-details-stock { width:100%; }
+          .lt-material-details-grid { grid-template-columns:1fr; }
+          .lt-material-details-actions .lt-btn { flex:1 1 140px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .lt-card-clickable, .lt-material-detail-row, .lt-add-card, .lt-subtab, .lt-date-icon { transition:none !important; }
+          .lt-card-clickable:hover, .lt-card-clickable:focus-visible, .lt-material-detail-row:hover, .lt-add-card:hover, .lt-subtab:hover { transform:none !important; }
         }
       `}</style>
 
@@ -2701,7 +3307,7 @@ export default function App() {
 
 
             <div className="lt-modal-hint" style={{ margin: "14px 0 0" }}>
-              New accounts require admin approval. Admin accounts are assigned in Supabase by changing the profile role to <strong>admin</strong> and status to <strong>approved</strong>.
+              New accounts require admin approval. Admin accounts are assigned in Appwrite by changing the profile role to <strong>admin</strong> and status to <strong>approved</strong>.
             </div>
           </form>
         </div>
@@ -2769,7 +3375,14 @@ export default function App() {
                 />
                 <div className="lt-grid">
                   {deptMaterials.map((material) => (
-                    <MaterialCard key={material.id} material={material} onUse={(m) => openModal("use", m)} onBorrow={(m) => openModal("borrow", m)} onCorrect={(m) => openModal("correct", m)} />
+                    <MaterialCard
+                      key={material.id}
+                      material={material}
+                      onView={(m) => openModal("materialDetails", m)}
+                      onUse={(m) => openModal("use", m)}
+                      onBorrow={(m) => openModal("borrow", m)}
+                      onCorrect={(m) => openModal("correct", m)}
+                    />
                   ))}
                   <button className="lt-add-card" onClick={() => openModal("request")}>
                     <Plus size={20} /> Request new material
@@ -2815,6 +3428,7 @@ export default function App() {
                           <strong>{request.status === "approved" ? "Approved" : "Rejected"} by:</strong> {request.reviewer_name || "Admin"}{request.reviewed_at ? ` · ${fmtTime(request.reviewed_at)}` : ""}
                         </div>
                       )}
+                      {request.material_responsible && <div className="lt-request-meta"><strong>MR (Material Responsible):</strong> {request.material_responsible}</div>}
                       {request.admin_note && <div className="lt-request-meta"><strong>Admin note:</strong> {request.admin_note}</div>}
                     </div>
                   ))}
@@ -2848,8 +3462,11 @@ export default function App() {
                 <div className="lt-header">
                   <div>
                     <div className="lt-h1">Support chat</div>
-                    <div className="lt-h1-sub">Talk to the admin team about {userDept}</div>
+                    <div className="lt-h1-sub">Talk to the admin team about {userDept} · unread messages appear as a badge</div>
                   </div>
+                  {browserNotificationPermission !== "granted" && browserNotificationPermission !== "unsupported" && (
+                    <button className="lt-btn lt-btn-ghost" onClick={enableChatNotifications}><Bell size={14} /> Enable notifications</button>
+                  )}
                 </div>
                 <ChatPanel
                   messages={deptChats}
@@ -2956,6 +3573,7 @@ export default function App() {
                           <strong>{request.status === "approved" ? "Approved" : "Rejected"} by:</strong> {request.reviewer_name || "Admin"}{request.reviewed_at ? ` · ${fmtTime(request.reviewed_at)}` : ""}
                         </div>
                       )}
+                      {request.material_responsible && <div className="lt-request-meta"><strong>MR (Material Responsible):</strong> {request.material_responsible}</div>}
                       {request.admin_note && <div className="lt-request-meta"><strong>Admin note:</strong> {request.admin_note}</div>}
                       {request.status === "pending" && (
                         <div className="lt-request-actions">
@@ -3034,7 +3652,7 @@ export default function App() {
                 <div className="lt-header">
                   <div>
                     <div className="lt-h1">Inventory management</div>
-                    <div className="lt-h1-sub">Manage, transfer, maintain, or permanently delete approved materials</div>
+                    <div className="lt-h1-sub">View full records, log usage, borrow, correct, transfer, maintain, or remove approved materials</div>
                   </div>
                   <button className="lt-btn lt-btn-ghost" onClick={exportMaterialsCsv}><Download size={14} /> Export</button>
                 </div>
@@ -3054,8 +3672,11 @@ export default function App() {
                     <MaterialCard
                       key={material.id}
                       material={material}
-                      readOnly
                       showDept
+                      onView={(m) => openModal("materialDetails", m)}
+                      onUse={(m) => openModal("use", m)}
+                      onBorrow={(m) => openModal("borrow", m)}
+                      onCorrect={(m) => openModal("correct", m)}
                       onTransfer={(m) => openModal("transfer", m)}
                       onMaintenance={(m) => openModal("maintenance", m)}
                       onDelete={(m) => openModal("deleteMaterial", m)}
@@ -3063,6 +3684,7 @@ export default function App() {
                   ))}
                 </div>
                 <PaginationControls page={materialsPage} pageSize={MATERIALS_PAGE_SIZE} total={materialsTotal} onPage={setMaterialsPage} label="materials" />
+                <BorrowList borrows={borrowRecords} onReturn={(borrow) => openModal("return", null, null, null, borrow)} />
               </>
             )}
 
@@ -3242,6 +3864,79 @@ export default function App() {
               </>
             )}
 
+            {(isAdmin || userDept === VIPM_DEPARTMENT) && tab === "cultureLogs" && (
+              <>
+                <div className="lt-header">
+                  <div>
+                    <div className="lt-h1">VIPM fungi &amp; bacteria growth monitor</div>
+                    <div className="lt-h1-sub">Track stored cultures, expected readiness, location, progress, and contamination status</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button
+                      className="lt-btn lt-btn-ghost"
+                      onClick={() => downloadRows(
+                        "vipm-culture-logs",
+                        filteredCultureLogs.map((culture) => ({
+                          Type: culture.organism_type,
+                          Culture: culture.culture_name,
+                          Strain: culture.strain || "",
+                          Stored: culture.stored_at || "",
+                          Ready: culture.ready_at || "",
+                          Status: cultureStatusOf(culture),
+                          Location: culture.storage_location || "",
+                          Notes: culture.notes || "",
+                          "Recorded by": culture.recorded_by_name || "",
+                        })),
+                        exportFormat
+                      )}
+                    >
+                      <Download size={14} /> Export
+                    </button>
+                    <button className="lt-btn lt-btn-accent" onClick={() => openModal("culture")}>
+                      <Plus size={14} /> Add growth log
+                    </button>
+                  </div>
+                </div>
+
+                <div className="lt-note lt-culture-summary" style={{ marginBottom: 12 }}>
+                  This monitor uses one compact Appwrite collection for both fungi and bacteria. Readiness is calculated from the expected ready date, while completed and contaminated records keep their manually assigned status.
+                </div>
+
+                <div className="lt-stat-row">
+                  <div className="lt-stat-card"><div className="lt-stat-num">{cultureSummary.total}</div><div className="lt-stat-label">Total cultures</div></div>
+                  <div className="lt-stat-card"><div className="lt-stat-num">{cultureSummary.fungi}</div><div className="lt-stat-label">Fungi logs</div></div>
+                  <div className="lt-stat-card"><div className="lt-stat-num">{cultureSummary.bacteria}</div><div className="lt-stat-label">Bacteria logs</div></div>
+                  <div className="lt-stat-card"><div className="lt-stat-num">{cultureSummary.ready}</div><div className="lt-stat-label">Ready now</div></div>
+                </div>
+
+                <div className="lt-filter-row lt-culture-filters">
+                  <div className="lt-search-line" style={{ flex: 1, minWidth: 220 }}>
+                    <Search size={14} />
+                    <input
+                      className="lt-search-input"
+                      value={cultureSearch}
+                      onChange={(e) => setCultureSearch(e.target.value)}
+                      placeholder="Search culture, strain, location, or notes..."
+                    />
+                  </div>
+                  <select className="lt-select" value={cultureTypeFilter} onChange={(e) => setCultureTypeFilter(e.target.value)}>
+                    <option value="All">All culture types</option>
+                    {CULTURE_TYPES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                  <select className="lt-select" value={cultureStatusFilter} onChange={(e) => setCultureStatusFilter(e.target.value)}>
+                    <option value="All">All statuses</option>
+                    {CULTURE_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </div>
+
+                <CultureLogGrid
+                  rows={filteredCultureLogs}
+                  onStatus={updateCultureStatus}
+                  onDelete={deleteCultureLog}
+                />
+              </>
+            )}
+
             {isAdmin && tab === "reports" && (
               <>
                 <div className="lt-header">
@@ -3252,7 +3947,7 @@ export default function App() {
                   <button className="lt-btn lt-btn-accent" onClick={printSelectedReport}><FileSpreadsheet size={14} /> Print / Save PDF</button>
                 </div>
                 <div className="lt-note" style={{ marginBottom: 12 }}>
-                  Reports use the records currently loaded for the selected report type. Choose a department, refresh the page, then print. This keeps Supabase egress low.
+                  Reports use the records currently loaded for the selected report type. Choose a department, refresh the page, then print. This keeps Appwrite reads low.
                 </div>
                 <div className="lt-filter-row">
                   <select className="lt-select" value={reportType} onChange={(e) => setReportType(e.target.value)}>
@@ -3311,8 +4006,11 @@ export default function App() {
                 <div className="lt-header">
                   <div>
                     <div className="lt-h1">Support inbox</div>
-                    <div className="lt-h1-sub">Conversations from every department</div>
+                    <div className="lt-h1-sub">Conversations from every department · {totalUnreadChats} unread</div>
                   </div>
+                  {browserNotificationPermission !== "granted" && browserNotificationPermission !== "unsupported" && (
+                    <button className="lt-btn lt-btn-ghost" onClick={enableChatNotifications}><Bell size={14} /> Enable notifications</button>
+                  )}
                 </div>
                 <div className="lt-conv-layout">
                   <div className="lt-conv-list">
@@ -3320,7 +4018,10 @@ export default function App() {
                       const last = lastMsgByDept(department);
                       return (
                         <button key={department} className={`lt-conv-item ${adminActiveDept === department ? "active" : ""}`} onClick={() => setAdminActiveDept(department)}>
-                          <div className="lt-conv-dept">{department}</div>
+                          <div className="lt-conv-dept">
+                            <span>{department}</span>
+                            {unreadChatByDept[department] > 0 && <span className="lt-conv-unread">{unreadChatByDept[department]}</span>}
+                          </div>
                           <div className="lt-conv-preview">{last ? last.text : "No messages yet"}</div>
                         </button>
                       );
@@ -3342,6 +4043,86 @@ export default function App() {
             )}
           </div>
         </div>
+      )}
+
+      {modalMode === "materialDetails" && activeMaterial && (
+        <Modal title={`Material details — ${activeMaterial.name}`} onClose={closeModal}>
+          <MaterialDetails material={activeMaterial} />
+          <div className="lt-material-details-actions">
+            <button className="lt-btn lt-btn-accent" onClick={() => openModal("use", activeMaterial)}>
+              Log usage
+            </button>
+            <button className="lt-btn lt-btn-ghost" onClick={() => openModal("borrow", activeMaterial)}>
+              <PackageOpen size={14} /> Borrow
+            </button>
+            <button className="lt-btn lt-btn-ghost" onClick={() => openModal("correct", activeMaterial)}>
+              <Pencil size={14} /> Correct count
+            </button>
+            {isAdmin && (
+              <button className="lt-btn lt-btn-ghost" onClick={() => openModal("transfer", activeMaterial)}>
+                <ArrowRightLeft size={14} /> Transfer
+              </button>
+            )}
+            {isAdmin && activeMaterial.material_type === "non_consumable" && (
+              <button className="lt-btn lt-btn-ghost" onClick={() => openModal("maintenance", activeMaterial)}>
+                <CalendarClock size={14} /> Maintenance
+              </button>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {modalMode === "culture" && (
+        <Modal title="Add fungi or bacteria growth log" onClose={closeModal}>
+          <div className="lt-note" style={{ marginBottom: 14 }}>
+            VIPM monitoring record. Use the expected ready date to track incubation progress and update the status when the culture is ready, completed, or contaminated.
+          </div>
+          <div className="lt-form-row">
+            <div className="lt-field">
+              <label className="lt-label">Culture type</label>
+              <select className="lt-select" value={cultureForm.organism_type} onChange={(e) => setCultureForm({ ...cultureForm, organism_type: e.target.value })}>
+                {CULTURE_TYPES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </div>
+            <div className="lt-field">
+              <label className="lt-label">Culture name</label>
+              <input
+                className="lt-input"
+                maxLength={255}
+                value={cultureForm.culture_name}
+                onChange={(e) => setCultureForm({ ...cultureForm, culture_name: e.target.value })}
+                placeholder={cultureForm.organism_type === "bacteria" ? "e.g. Bacillus isolate" : "e.g. Trichoderma culture"}
+              />
+            </div>
+          </div>
+          <div className="lt-field">
+            <label className="lt-label">Strain / isolate code <span className="lt-optional">(optional)</span></label>
+            <input className="lt-input" maxLength={255} value={cultureForm.strain} onChange={(e) => setCultureForm({ ...cultureForm, strain: e.target.value })} placeholder="Batch, strain, or isolate identifier" />
+          </div>
+          <div className="lt-form-row">
+            <div className="lt-field">
+              <label className="lt-label">Date stored</label>
+              <DateInput value={cultureForm.stored_at} onChange={(e) => setCultureForm({ ...cultureForm, stored_at: e.target.value })} ariaLabel="Choose date stored" />
+            </div>
+            <div className="lt-field">
+              <label className="lt-label">Expected ready date</label>
+              <DateInput value={cultureForm.ready_at} min={cultureForm.stored_at || undefined} onChange={(e) => setCultureForm({ ...cultureForm, ready_at: e.target.value })} ariaLabel="Choose expected ready date" />
+            </div>
+          </div>
+          <div className="lt-field">
+            <label className="lt-label">Storage / incubation location</label>
+            <input className="lt-input" maxLength={255} value={cultureForm.storage_location} onChange={(e) => setCultureForm({ ...cultureForm, storage_location: e.target.value })} placeholder="e.g. Incubator A, Shelf 2" />
+          </div>
+          <div className="lt-field">
+            <label className="lt-label">Growth notes <span className="lt-optional">(optional)</span></label>
+            <textarea className="lt-textarea" maxLength={750} value={cultureForm.notes} onChange={(e) => setCultureForm({ ...cultureForm, notes: e.target.value })} placeholder="Medium, temperature, appearance, handling notes, or observations" />
+            <div className="lt-modal-hint">{cultureForm.notes.length}/750 characters</div>
+          </div>
+          {formError && <div className="lt-error">{formError}</div>}
+          <button className="lt-btn lt-btn-accent" style={{ width: "100%", padding: "11px 16px" }} disabled={busy} onClick={submitCultureLog}>
+            {busy ? "Saving…" : "Save growth log"}
+          </button>
+        </Modal>
       )}
 
       {modalMode === "cleanup" && (
@@ -3384,12 +4165,12 @@ export default function App() {
               {DEPARTMENTS.map((department) => <option key={department} value={department}>{department}</option>)}
             </select>
           </div>
-          <div className="lt-field"><label className="lt-label">Supplier name</label><input className="lt-input" value={supplierForm.name} onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })} /></div>
+          <div className="lt-field"><label className="lt-label">Supplier name</label><input className="lt-input" maxLength={255} value={supplierForm.name} onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })} /></div>
           <div className="lt-form-row">
-            <div className="lt-field"><label className="lt-label">Contact person</label><input className="lt-input" value={supplierForm.contact_person} onChange={(e) => setSupplierForm({ ...supplierForm, contact_person: e.target.value })} /></div>
-            <div className="lt-field"><label className="lt-label">Phone</label><input className="lt-input" value={supplierForm.phone} onChange={(e) => setSupplierForm({ ...supplierForm, phone: e.target.value })} /></div>
+            <div className="lt-field"><label className="lt-label">Contact person</label><input className="lt-input" maxLength={255} value={supplierForm.contact_person} onChange={(e) => setSupplierForm({ ...supplierForm, contact_person: e.target.value })} /></div>
+            <div className="lt-field"><label className="lt-label">Phone</label><input className="lt-input" maxLength={80} value={supplierForm.phone} onChange={(e) => setSupplierForm({ ...supplierForm, phone: e.target.value })} /></div>
           </div>
-          <div className="lt-field"><label className="lt-label">Email</label><input className="lt-input" type="email" value={supplierForm.email} onChange={(e) => setSupplierForm({ ...supplierForm, email: e.target.value })} /></div>
+          <div className="lt-field"><label className="lt-label">Email</label><input className="lt-input" type="email" maxLength={320} value={supplierForm.email} onChange={(e) => setSupplierForm({ ...supplierForm, email: e.target.value })} /></div>
           <div className="lt-form-row">
             <div className="lt-field">
               <label className="lt-label">Category</label>
@@ -3398,13 +4179,13 @@ export default function App() {
                 {MATERIAL_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
               </select>
             </div>
-            <div className="lt-field"><label className="lt-label">Material name</label><input className="lt-input" value={supplierForm.material_name} onChange={(e) => setSupplierForm({ ...supplierForm, material_name: e.target.value })} placeholder="Optional" /></div>
+            <div className="lt-field"><label className="lt-label">Material name</label><input className="lt-input" maxLength={255} value={supplierForm.material_name} onChange={(e) => setSupplierForm({ ...supplierForm, material_name: e.target.value })} placeholder="Optional" /></div>
           </div>
           <div className="lt-form-row">
             <div className="lt-field"><label className="lt-label">Price per unit</label><input className="lt-input" type="number" min="0" step="0.01" value={supplierForm.price_per_unit} onChange={(e) => setSupplierForm({ ...supplierForm, price_per_unit: e.target.value })} /></div>
-            <div className="lt-field"><label className="lt-label">Unit</label><input className="lt-input" value={supplierForm.unit} onChange={(e) => setSupplierForm({ ...supplierForm, unit: e.target.value })} placeholder="mL, g, pcs" /></div>
+            <div className="lt-field"><label className="lt-label">Unit</label><input className="lt-input" maxLength={80} value={supplierForm.unit} onChange={(e) => setSupplierForm({ ...supplierForm, unit: e.target.value })} placeholder="mL, g, pcs" /></div>
           </div>
-          <div className="lt-field"><label className="lt-label">Notes</label><textarea className="lt-textarea" value={supplierForm.notes} onChange={(e) => setSupplierForm({ ...supplierForm, notes: e.target.value })} /></div>
+          <div className="lt-field"><label className="lt-label">Notes</label><textarea className="lt-textarea" maxLength={5000} value={supplierForm.notes} onChange={(e) => setSupplierForm({ ...supplierForm, notes: e.target.value })} /></div>
           {formError && <div className="lt-error">{formError}</div>}
           <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitSupplier}>{busy ? "Sending…" : "Submit for admin approval"}</button>
         </Modal>
@@ -3425,7 +4206,7 @@ export default function App() {
           </div>
           <div className="lt-field">
             <label className="lt-label">Reason</label>
-            <textarea className="lt-textarea" value={transferForm.reason} onChange={(e) => setTransferForm({ ...transferForm, reason: e.target.value })} placeholder="Why is this stock being transferred?" />
+            <textarea className="lt-textarea" maxLength={5000} value={transferForm.reason} onChange={(e) => setTransferForm({ ...transferForm, reason: e.target.value })} placeholder="Why is this stock being transferred?" />
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitTransfer}>{busy ? "Transferring…" : "Transfer material"}</button>
@@ -3437,7 +4218,7 @@ export default function App() {
           <div className="lt-modal-hint">This will go to the admin approval queue first. It will not appear in stock until approved.</div>
           <div className="lt-field">
             <label className="lt-label">Material name</label>
-            <input className="lt-input" value={requestForm.name} onChange={(e) => setRequestForm({ ...requestForm, name: e.target.value })} placeholder="e.g. Acetone" />
+            <input className="lt-input" maxLength={255} value={requestForm.name} onChange={(e) => setRequestForm({ ...requestForm, name: e.target.value })} placeholder="e.g. Acetone" />
           </div>
           <div className="lt-field">
             <label className="lt-label">Category</label>
@@ -3475,7 +4256,7 @@ export default function App() {
             </div>
             <div className="lt-field">
               <label className="lt-label">Unit</label>
-              <input className="lt-input" value={requestForm.unit} onChange={(e) => setRequestForm({ ...requestForm, unit: e.target.value })} placeholder="mL, g, units…" />
+              <input className="lt-input" maxLength={80} value={requestForm.unit} onChange={(e) => setRequestForm({ ...requestForm, unit: e.target.value })} placeholder="mL, g, units…" />
             </div>
           </div>
           <div className="lt-field">
@@ -3484,7 +4265,7 @@ export default function App() {
           </div>
           <div className="lt-field">
             <label className="lt-label">Expiration date</label>
-            <input className="lt-input" type="date" value={requestForm.expires_at} onChange={(e) => setRequestForm({ ...requestForm, expires_at: e.target.value })} />
+            <DateInput value={requestForm.expires_at} onChange={(e) => setRequestForm({ ...requestForm, expires_at: e.target.value })} ariaLabel="Choose expiry date" />
           </div>
           <div className="lt-form-row">
             <div className="lt-field">
@@ -3493,7 +4274,7 @@ export default function App() {
             </div>
             <div className="lt-field">
               <label className="lt-label">Supplier name</label>
-              <input className="lt-input" value={requestForm.supplier_name} onChange={(e) => setRequestForm({ ...requestForm, supplier_name: e.target.value })} placeholder="Optional" />
+              <input className="lt-input" maxLength={255} value={requestForm.supplier_name} onChange={(e) => setRequestForm({ ...requestForm, supplier_name: e.target.value })} placeholder="Optional" />
             </div>
           </div>
           <div className="lt-form-row">
@@ -3505,29 +4286,29 @@ export default function App() {
             </div>
             <div className="lt-field">
               <label className="lt-label">PPE required</label>
-              <input className="lt-input" value={requestForm.ppe_required} onChange={(e) => setRequestForm({ ...requestForm, ppe_required: e.target.value })} placeholder="Gloves, goggles, lab coat..." />
+              <input className="lt-input" maxLength={500} value={requestForm.ppe_required} onChange={(e) => setRequestForm({ ...requestForm, ppe_required: e.target.value })} placeholder="Gloves, goggles, lab coat..." />
             </div>
           </div>
           <div className="lt-field">
             <label className="lt-label">Storage instruction</label>
-            <input className="lt-input" value={requestForm.storage_instruction} onChange={(e) => setRequestForm({ ...requestForm, storage_instruction: e.target.value })} placeholder="e.g. Store in flammable cabinet" />
+            <input className="lt-input" maxLength={1000} value={requestForm.storage_instruction} onChange={(e) => setRequestForm({ ...requestForm, storage_instruction: e.target.value })} placeholder="e.g. Store in flammable cabinet" />
           </div>
           <div className="lt-field">
             <label className="lt-label">Handling instruction</label>
-            <input className="lt-input" value={requestForm.handling_instruction} onChange={(e) => setRequestForm({ ...requestForm, handling_instruction: e.target.value })} placeholder="Optional safety handling note" />
+            <input className="lt-input" maxLength={1000} value={requestForm.handling_instruction} onChange={(e) => setRequestForm({ ...requestForm, handling_instruction: e.target.value })} placeholder="Optional safety handling note" />
           </div>
           <div className="lt-field">
             <label className="lt-label">Disposal instruction</label>
-            <input className="lt-input" value={requestForm.disposal_instruction} onChange={(e) => setRequestForm({ ...requestForm, disposal_instruction: e.target.value })} placeholder="Optional disposal note" />
+            <input className="lt-input" maxLength={1000} value={requestForm.disposal_instruction} onChange={(e) => setRequestForm({ ...requestForm, disposal_instruction: e.target.value })} placeholder="Optional disposal note" />
           </div>
           <div className="lt-form-row">
             <div className="lt-field">
               <label className="lt-label">Incompatible with</label>
-              <input className="lt-input" value={requestForm.incompatible_with} onChange={(e) => setRequestForm({ ...requestForm, incompatible_with: e.target.value })} placeholder="Acids, oxidizers, heat..." />
+              <input className="lt-input" maxLength={500} value={requestForm.incompatible_with} onChange={(e) => setRequestForm({ ...requestForm, incompatible_with: e.target.value })} placeholder="Acids, oxidizers, heat..." />
             </div>
             <div className="lt-field">
               <label className="lt-label">Compatibility warning</label>
-              <input className="lt-input" value={requestForm.compatibility_notes} onChange={(e) => setRequestForm({ ...requestForm, compatibility_notes: e.target.value })} placeholder="Keep away from strong oxidizers..." />
+              <input className="lt-input" maxLength={1000} value={requestForm.compatibility_notes} onChange={(e) => setRequestForm({ ...requestForm, compatibility_notes: e.target.value })} placeholder="Keep away from strong oxidizers..." />
             </div>
           </div>
           {requestForm.material_type === "non_consumable" && (
@@ -3539,28 +4320,28 @@ export default function App() {
               <div className="lt-form-row">
                 <div className="lt-field">
                   <label className="lt-label">Condition / status</label>
-                  <input className="lt-input" value={requestForm.condition} onChange={(e) => setRequestForm({ ...requestForm, condition: e.target.value })} placeholder="Good, needs inspection..." />
+                  <input className="lt-input" maxLength={255} value={requestForm.condition} onChange={(e) => setRequestForm({ ...requestForm, condition: e.target.value })} placeholder="Good, needs inspection..." />
                 </div>
                 <div className="lt-field">
                   <label className="lt-label">Next maintenance due</label>
-                  <input className="lt-input" type="date" value={requestForm.maintenance_due_at} onChange={(e) => setRequestForm({ ...requestForm, maintenance_due_at: e.target.value })} />
+                  <DateInput value={requestForm.maintenance_due_at} onChange={(e) => setRequestForm({ ...requestForm, maintenance_due_at: e.target.value })} ariaLabel="Choose next maintenance date" />
                 </div>
               </div>
               <div className="lt-form-row">
                 <div className="lt-field">
                   <label className="lt-label">Last maintenance date</label>
-                  <input className="lt-input" type="date" value={requestForm.last_maintenance_at} onChange={(e) => setRequestForm({ ...requestForm, last_maintenance_at: e.target.value })} />
+                  <DateInput value={requestForm.last_maintenance_at} onChange={(e) => setRequestForm({ ...requestForm, last_maintenance_at: e.target.value })} ariaLabel="Choose last maintenance date" />
                 </div>
                 <div className="lt-field">
                   <label className="lt-label">Maintenance note</label>
-                  <input className="lt-input" value={requestForm.maintenance_note} onChange={(e) => setRequestForm({ ...requestForm, maintenance_note: e.target.value })} placeholder="Calibration, cleaning, repair..." />
+                  <input className="lt-input" maxLength={1000} value={requestForm.maintenance_note} onChange={(e) => setRequestForm({ ...requestForm, maintenance_note: e.target.value })} placeholder="Calibration, cleaning, repair..." />
                 </div>
               </div>
             </div>
           )}
           <div className="lt-field">
             <label className="lt-label">Purpose / reason for request</label>
-            <textarea className="lt-textarea" value={requestForm.purpose} onChange={(e) => setRequestForm({ ...requestForm, purpose: e.target.value })} placeholder="Why is this material needed?" />
+            <textarea className="lt-textarea" maxLength={1000} value={requestForm.purpose} onChange={(e) => setRequestForm({ ...requestForm, purpose: e.target.value })} placeholder="Why is this material needed?" />
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitItemRequest}>{busy ? "Sending…" : "Submit for approval"}</button>
@@ -3576,7 +4357,7 @@ export default function App() {
           </div>
           <div className="lt-field">
             <label className="lt-label">Purpose</label>
-            <textarea className="lt-textarea" value={useForm.purpose} onChange={(e) => setUseForm({ ...useForm, purpose: e.target.value })} placeholder="What was it used for?" />
+            <textarea className="lt-textarea" maxLength={5000} value={useForm.purpose} onChange={(e) => setUseForm({ ...useForm, purpose: e.target.value })} placeholder="What was it used for?" />
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitUse}>{busy ? "Saving…" : "Log usage"}</button>
@@ -3592,11 +4373,11 @@ export default function App() {
           </div>
           <div className="lt-field">
             <label className="lt-label">Due date for return</label>
-            <input className="lt-input" type="date" value={borrowForm.due_at} onChange={(e) => setBorrowForm({ ...borrowForm, due_at: e.target.value })} />
+            <DateInput value={borrowForm.due_at} onChange={(e) => setBorrowForm({ ...borrowForm, due_at: e.target.value })} ariaLabel="Choose return due date" />
           </div>
           <div className="lt-field">
             <label className="lt-label">Borrowing purpose</label>
-            <textarea className="lt-textarea" value={borrowForm.purpose} onChange={(e) => setBorrowForm({ ...borrowForm, purpose: e.target.value })} placeholder="What experiment or activity needs this borrowed material?" />
+            <textarea className="lt-textarea" maxLength={5000} value={borrowForm.purpose} onChange={(e) => setBorrowForm({ ...borrowForm, purpose: e.target.value })} placeholder="What experiment or activity needs this borrowed material?" />
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitBorrow}>{busy ? "Saving…" : "Borrow material"}</button>
@@ -3612,7 +4393,7 @@ export default function App() {
           </div>
           <div className="lt-field">
             <label className="lt-label">Return note</label>
-            <textarea className="lt-textarea" value={returnForm.note} onChange={(e) => setReturnForm({ ...returnForm, note: e.target.value })} placeholder="Optional condition or note" />
+            <textarea className="lt-textarea" maxLength={5000} value={returnForm.note} onChange={(e) => setReturnForm({ ...returnForm, note: e.target.value })} placeholder="Optional condition or note" />
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitReturn}>{busy ? "Saving…" : "Return material"}</button>
@@ -3628,7 +4409,7 @@ export default function App() {
           </div>
           <div className="lt-field">
             <label className="lt-label">Reason for correction</label>
-            <textarea className="lt-textarea" value={correctForm.reason} onChange={(e) => setCorrectForm({ ...correctForm, reason: e.target.value })} placeholder="e.g. Recount after audit, mislabeled box…" />
+            <textarea className="lt-textarea" maxLength={5000} value={correctForm.reason} onChange={(e) => setCorrectForm({ ...correctForm, reason: e.target.value })} placeholder="e.g. Recount after audit, mislabeled box…" />
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitCorrect}>{busy ? "Saving…" : "Save correction"}</button>
@@ -3641,9 +4422,16 @@ export default function App() {
             <strong>{activeRequest.name}</strong><br />
             {activeRequest.dept} · {displayQty(activeRequest.qty)} {activeRequest.unit} · requested by {activeRequest.requester_name}
           </div>
+          {modalMode === "approve" && (
+            <div className="lt-field">
+              <label className="lt-label">MR — Material Responsible</label>
+              <input className="lt-input" maxLength={255} value={materialResponsible} onChange={(e) => setMaterialResponsible(e.target.value)} placeholder="Full name of the person responsible for this material" />
+              <div className="lt-field-help">This person is accountable for receiving, safekeeping, monitoring, and coordinating the material.</div>
+            </div>
+          )}
           <div className="lt-field">
             <label className="lt-label">{modalMode === "reject" ? "Rejection reason" : "Admin note"}</label>
-            <textarea className="lt-textarea" value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} placeholder={modalMode === "reject" ? "Required reason shown to the requester" : "Optional note shown to the requester"} />
+            <textarea className="lt-textarea" maxLength={1000} value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} placeholder={modalMode === "reject" ? "Required reason shown to the requester" : "Optional note shown to the requester"} />
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           {modalMode === "approve" ? (
@@ -3659,21 +4447,21 @@ export default function App() {
           <div className="lt-modal-hint">Update equipment/material condition and maintenance schedule.</div>
           <div className="lt-field">
             <label className="lt-label">Condition</label>
-            <input className="lt-input" value={maintenanceForm.condition} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, condition: e.target.value })} placeholder="Good, needs repair, for calibration..." />
+            <input className="lt-input" maxLength={255} value={maintenanceForm.condition} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, condition: e.target.value })} placeholder="Good, needs repair, for calibration..." />
           </div>
           <div className="lt-form-row">
             <div className="lt-field">
               <label className="lt-label">Last maintenance date</label>
-              <input className="lt-input" type="date" value={maintenanceForm.last_maintenance_at} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, last_maintenance_at: e.target.value })} />
+              <DateInput value={maintenanceForm.last_maintenance_at} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, last_maintenance_at: e.target.value })} ariaLabel="Choose last maintenance date" />
             </div>
             <div className="lt-field">
               <label className="lt-label">Next maintenance due</label>
-              <input className="lt-input" type="date" value={maintenanceForm.maintenance_due_at} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, maintenance_due_at: e.target.value })} />
+              <DateInput value={maintenanceForm.maintenance_due_at} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, maintenance_due_at: e.target.value })} ariaLabel="Choose next maintenance date" />
             </div>
           </div>
           <div className="lt-field">
             <label className="lt-label">Maintenance note</label>
-            <textarea className="lt-textarea" value={maintenanceForm.maintenance_note} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, maintenance_note: e.target.value })} placeholder="Cleaning, calibration, repair notes..." />
+            <textarea className="lt-textarea" maxLength={1000} value={maintenanceForm.maintenance_note} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, maintenance_note: e.target.value })} placeholder="Cleaning, calibration, repair notes..." />
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitMaintenance}>{busy ? "Saving…" : "Save maintenance"}</button>
@@ -3687,7 +4475,7 @@ export default function App() {
           </div>
           <div className="lt-field" style={{ marginTop: 14 }}>
             <label className="lt-label">Reason / note</label>
-            <textarea className="lt-textarea" value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} placeholder="Optional reason for deletion" />
+            <textarea className="lt-textarea" maxLength={1000} value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} placeholder="Optional reason for deletion" />
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           <button className="lt-btn lt-btn-danger" style={{ width: "100%", padding: "11px 16px" }} disabled={busy} onClick={() => deleteMaterial(activeMaterial)}>
@@ -3719,7 +4507,7 @@ export default function App() {
           </div>
           <div className="lt-field" style={{ marginTop: 14 }}>
             <label className="lt-label">Reason / note</label>
-            <textarea className="lt-textarea" value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} placeholder="Optional reason for account deletion" />
+            <textarea className="lt-textarea" maxLength={1000} value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} placeholder="Optional reason for account deletion" />
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           <button className="lt-btn lt-btn-danger" style={{ width: "100%", padding: "11px 16px" }} disabled={busy} onClick={() => deleteAccount(activeAccount)}>
