@@ -300,6 +300,8 @@ async function main() {
       ["idx_updated", "key", ["updated"], ["DESC"]],
       ["idx_maintenance_due", "key", ["maintenance_due_at"], ["ASC"]],
       ["idx_material_type", "key", ["material_type"]],
+      ["idx_type_due", "key", ["material_type", "maintenance_due_at"], ["ASC", "ASC"]],
+      ["idx_dept_type_due", "key", ["dept", "material_type", "maintenance_due_at"], ["ASC", "ASC", "ASC"]],
     ],
     logs: [
       ["idx_dept", "key", ["dept"]],
@@ -339,6 +341,17 @@ async function main() {
       ["idx_status", "key", ["status"]],
       ["idx_ready_at", "key", ["ready_at"], ["ASC"]],
       ["idx_updated_at", "key", ["updated_at"], ["DESC"]],
+    ],
+    maintenance_requests: [
+      ["idx_dept", "key", ["dept"]],
+      ["idx_status", "key", ["status"]],
+      ["idx_requested_by", "key", ["requested_by"]],
+      ["idx_material", "key", ["material_id"]],
+      ["idx_created_at", "key", ["created_at"], ["DESC"]],
+      ["idx_maintenance_date", "key", ["maintenance_date"], ["ASC"]],
+      ["idx_requester_status", "key", ["requested_by", "status"], ["ASC", "ASC"]],
+      ["idx_requester_created", "key", ["requested_by", "created_at"], ["ASC", "DESC"]],
+      ["idx_dept_created", "key", ["dept", "created_at"], ["ASC", "DESC"]],
     ],
   };
 

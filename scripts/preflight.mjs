@@ -23,6 +23,7 @@ record(packageLock.includes("https://registry.npmjs.org/"), "package-lock.json u
 record(Boolean(collections.materials), "materials collection exists in schema");
 record(Boolean(collections.item_requests), "item_requests collection exists in schema");
 record(Boolean(collections.culture_logs), "culture_logs collection exists in schema");
+record(Boolean(collections.maintenance_requests), "maintenance_requests collection exists in schema");
 record(collections.materials?.strings?.some((item) => item.startsWith("material_responsible:")), "materials includes material_responsible");
 record(collections.item_requests?.strings?.some((item) => item.startsWith("material_responsible:")), "item_requests includes material_responsible");
 
