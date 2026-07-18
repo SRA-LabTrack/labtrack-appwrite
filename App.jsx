@@ -133,7 +133,7 @@ const CULTURE_STATUS_OPTIONS = [
 const CLEAR_TARGET_OPTIONS = [
   { value: "logs", label: "Logs only" },
   { value: "chats", label: "Chats only" },
-  { value: "approval_logs", label: "Material approval logs only" },
+  { value: "approval_logs", label: "Material approval history and logs" },
   { value: "both", label: "Logs and chats" },
 ];
 
@@ -2628,7 +2628,7 @@ export default function App() {
 
     const result = Array.isArray(data) ? data[0] : data;
     closeModal();
-    setAppMessage(`Clear finished. Deleted ${result?.deleted_logs || 0} general logs, ${result?.deleted_approval_logs || 0} material approval logs, and ${result?.deleted_chats || 0} chat messages.`);
+    setAppMessage(`Clear finished. Deleted ${result?.deleted_logs || 0} general logs, ${result?.deleted_approval_logs || 0} material approval activity logs, ${result?.deleted_approval_requests || 0} reviewed approval records, and ${result?.deleted_chats || 0} chat messages.`);
     setLogsPage(0);
     loadData();
   }
@@ -4556,7 +4556,7 @@ export default function App() {
       {modalMode === "cleanup" && (
         <Modal title="Clear activity records" onClose={closeModal}>
           <div className="lt-error-box">
-            This permanently deletes the selected activity records. Material approval logs remove only approved/rejected approval entries and never delete pending requests or approved inventory materials.
+            This permanently deletes the selected activity records. Material approval cleanup removes approved/rejected request history and its matching activity logs. Pending requests and approved inventory materials are never deleted.
           </div>
           <div className="lt-field" style={{ marginTop: 14 }}>
             <label className="lt-label">What do you want to clear?</label>
@@ -4567,7 +4567,7 @@ export default function App() {
             </select>
             {clearForm.target === "approval_logs" && (
               <div className="lt-modal-hint" style={{ margin: "8px 0 0" }}>
-                Deletes only activity-log entries created when material requests were approved or rejected. Pending requests and inventory materials are preserved.
+                Deletes the approved/rejected cards from Material approvals together with their matching activity logs. Pending requests and approved inventory materials are preserved.
               </div>
             )}
           </div>

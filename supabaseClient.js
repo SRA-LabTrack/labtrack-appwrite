@@ -174,6 +174,27 @@ async function listCollection(table, queries = []) {
   return (response.documents || []).map(mapDocument);
 }
 
+async function listAllCollection(table, { pageSize = 100, maxRows = 5000 } = {}) {
+  const rows = [];
+  let offset = 0;
+
+  while (rows.length < maxRows) {
+    const take = Math.min(pageSize, maxRows - rows.length);
+    const response = await databases.listDocuments(
+      appwriteDatabaseId,
+      collectionFor(table),
+      [Query.limit(take), Query.offset(offset)]
+    );
+    const documents = (response.documents || []).map(mapDocument);
+    rows.push(...documents);
+
+    if (documents.length < take || rows.length >= Number(response.total || 0)) break;
+    offset += documents.length;
+  }
+
+  return rows;
+}
+
 async function getById(table, id) {
   const document = await databases.getDocument(appwriteDatabaseId, collectionFor(table), id);
   return mapDocument(document);
@@ -647,18 +668,24 @@ async function runRpc(name, args = {}) {
       }
 
       case "clear_activity_range": {
+        if (profile?.role !== "admin" || profile?.status !== "approved") {
+          throw new Error("Only an approved administrator can clear activity records.");
+        }
+
         const target = args.target_param || "logs";
         const period = args.period_param || "week";
         const days = { week: 7, month: 30, year: 365, all: Infinity }[period] ?? 7;
         const cutoff = Number.isFinite(days) ? Date.now() - days * 86400000 : 0;
         let deletedLogs = 0;
         let deletedApprovalLogs = 0;
+        let deletedApprovalRequests = 0;
         let deletedChats = 0;
 
         if (target === "logs" || target === "both") {
-          const logs = await getLogs(500);
+          const logs = await listAllCollection("logs");
           for (const log of logs) {
-            if (ymdToTime(log.timestamp) >= cutoff) {
+            const timestamp = ymdToTime(log.timestamp);
+            if (timestamp !== null && timestamp >= cutoff) {
               await deleteRow("logs", log.id);
               deletedLogs += 1;
             }
@@ -666,20 +693,34 @@ async function runRpc(name, args = {}) {
         }
 
         if (target === "approval_logs") {
-          const logs = await getLogs(500);
+          const approvalTypes = new Set(["approved", "rejected"]);
+          const logs = await listAllCollection("logs");
+          const reviewedRequests = await listAllCollection("item_requests");
+
           for (const log of logs) {
-            const isMaterialApproval = ["approved", "rejected"].includes(String(log.type || "").toLowerCase());
-            if (isMaterialApproval && ymdToTime(log.timestamp) >= cutoff) {
+            const isMaterialApproval = approvalTypes.has(String(log.type || "").toLowerCase());
+            const timestamp = ymdToTime(log.timestamp);
+            if (isMaterialApproval && timestamp !== null && timestamp >= cutoff) {
               await deleteRow("logs", log.id);
               deletedApprovalLogs += 1;
+            }
+          }
+
+          for (const request of reviewedRequests) {
+            const isReviewed = approvalTypes.has(String(request.status || "").toLowerCase());
+            const timestamp = ymdToTime(request.reviewed_at || request.created_at);
+            if (isReviewed && timestamp !== null && timestamp >= cutoff) {
+              await deleteRow("item_requests", request.id);
+              deletedApprovalRequests += 1;
             }
           }
         }
 
         if (target === "chats" || target === "both") {
-          const chats = await listCollection("chats", [Query.limit(500)]);
+          const chats = await listAllCollection("chats");
           for (const chat of chats) {
-            if (ymdToTime(chat.timestamp) >= cutoff) {
+            const timestamp = ymdToTime(chat.timestamp);
+            if (timestamp !== null && timestamp >= cutoff) {
               await deleteRow("chats", chat.id);
               deletedChats += 1;
             }
@@ -689,6 +730,7 @@ async function runRpc(name, args = {}) {
         return ok([{
           deleted_logs: deletedLogs,
           deleted_approval_logs: deletedApprovalLogs,
+          deleted_approval_requests: deletedApprovalRequests,
           deleted_chats: deletedChats,
         }]);
       }
