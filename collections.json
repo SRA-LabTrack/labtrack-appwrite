@@ -1,0 +1,224 @@
+{
+  "profiles": {
+    "strings": [
+      "email:320",
+      "full_name:255",
+      "dept:255",
+      "role:50",
+      "status:50",
+      "admin_note:2000",
+      "reviewed_by:64",
+      "reviewer_name:255",
+      "reviewed_at:80",
+      "created_at:80"
+    ],
+    "floats": []
+  },
+  "materials": {
+    "strings": [
+      "dept:255",
+      "name:255",
+      "category:255",
+      "material_type:80",
+      "unit:80",
+      "expires_at:80",
+      "updated:80",
+      "created_by:64",
+      "approved_by:64",
+      "approved_by_name:255",
+      "approved_at:80",
+      "created_at:80",
+      "supplier_name:255",
+      "hazard_level:80",
+      "storage_instruction:1000",
+      "handling_instruction:1000",
+      "disposal_instruction:1000",
+      "ppe_required:500",
+      "incompatible_with:500",
+      "compatibility_notes:1000",
+      "condition:255",
+      "last_maintenance_at:80",
+      "maintenance_due_at:80",
+      "maintenance_note:1000",
+      "material_responsible:255"
+    ],
+    "floats": [
+      "qty",
+      "threshold",
+      "price_per_unit"
+    ]
+  },
+  "logs": {
+    "strings": [
+      "dept:255",
+      "material_id:64",
+      "material_name:255",
+      "type:80",
+      "detail:5000",
+      "user_id:64",
+      "user_name:255",
+      "timestamp:80"
+    ],
+    "floats": [
+      "qty"
+    ]
+  },
+  "chats": {
+    "strings": [
+      "dept:255",
+      "sender_id:64",
+      "sender_name:255",
+      "sender_role:80",
+      "text:5000",
+      "timestamp:80"
+    ],
+    "floats": []
+  },
+  "item_requests": {
+    "strings": [
+      "dept:255",
+      "name:255",
+      "category:255",
+      "material_type:80",
+      "unit:80",
+      "expires_at:80",
+      "purpose:1000",
+      "requested_by:64",
+      "requester_name:255",
+      "status:80",
+      "admin_note:1000",
+      "reviewed_by:64",
+      "reviewer_name:255",
+      "reviewed_at:80",
+      "created_at:80",
+      "supplier_name:255",
+      "hazard_level:80",
+      "storage_instruction:1000",
+      "handling_instruction:1000",
+      "disposal_instruction:1000",
+      "ppe_required:500",
+      "incompatible_with:500",
+      "compatibility_notes:1000",
+      "condition:255",
+      "last_maintenance_at:80",
+      "maintenance_due_at:80",
+      "maintenance_note:1000",
+      "material_responsible:255"
+    ],
+    "floats": [
+      "qty",
+      "threshold",
+      "price_per_unit"
+    ]
+  },
+  "material_borrows": {
+    "strings": [
+      "dept:255",
+      "material_id:64",
+      "material_name:255",
+      "borrower_id:64",
+      "borrower_name:255",
+      "unit:80",
+      "purpose:5000",
+      "status:80",
+      "borrowed_at:80",
+      "returned_at:80",
+      "due_at:80"
+    ],
+    "floats": [
+      "qty_borrowed",
+      "qty_returned"
+    ]
+  },
+  "suppliers": {
+    "strings": [
+      "dept:255",
+      "name:255",
+      "contact_person:255",
+      "phone:80",
+      "email:320",
+      "material_category:255",
+      "material_name:255",
+      "unit:80",
+      "notes:5000",
+      "created_by:64",
+      "created_at:80",
+      "submitted_by:64",
+      "submitted_by_name:255",
+      "status:80",
+      "reviewed_by:64",
+      "reviewer_name:255",
+      "reviewed_at:80",
+      "review_note:2000"
+    ],
+    "floats": [
+      "price_per_unit"
+    ]
+  },
+  "restock_requests": {
+    "strings": [
+      "dept:255",
+      "material_id:64",
+      "material_name:255",
+      "unit:80",
+      "supplier_name:255",
+      "status:80",
+      "reason:5000",
+      "created_by:64",
+      "created_by_name:255",
+      "updated_by:64",
+      "updated_by_name:255",
+      "admin_note:2000",
+      "created_at:80",
+      "updated_at:80"
+    ],
+    "floats": [
+      "qty",
+      "estimated_cost"
+    ]
+  },
+  "culture_logs": {
+    "strings": [
+      "dept:255",
+      "organism_type:40",
+      "culture_name:255",
+      "strain:255",
+      "stored_at:80",
+      "ready_at:80",
+      "status:80",
+      "storage_location:255",
+      "notes:750",
+      "recorded_by:64",
+      "recorded_by_name:255",
+      "created_at:80",
+      "updated_at:80"
+    ],
+    "floats": []
+  },
+  "maintenance_requests": {
+    "strings": [
+      "dept:255",
+      "material_id:64",
+      "material_name:255",
+      "requested_by:64",
+      "requester_name:255",
+      "condition:255",
+      "maintenance_date:80",
+      "next_due_at:80",
+      "maintenance_type:255",
+      "service_provider:255",
+      "technician:255",
+      "notes:1000",
+      "status:80",
+      "admin_note:1000",
+      "reviewed_by:64",
+      "reviewer_name:255",
+      "reviewed_at:80",
+      "created_at:80",
+      "updated_at:80"
+    ],
+    "floats": [
+      "cost"
+    ]
+  }
+}
