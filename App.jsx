@@ -38,7 +38,7 @@ const DEPARTMENTS = [
 ];
 
 const VIPM_DEPARTMENT = "Variety Improvement and Pest Management (VIPM)";
-const USER_TAB_KEYS = ["inventory", "requests", "history", "cultureLogs", "support"];
+const USER_TAB_KEYS = ["inventory", "requests", "maintenance", "history", "cultureLogs", "support"];
 const ADMIN_TAB_KEYS = [
   "overview", "approvals", "accounts", "departments", "cultureLogs", "forecast",
   "restockOrders", "suppliers", "alerts", "userActivity", "overdue",
@@ -75,6 +75,7 @@ const OVERVIEW_ATTENTION_LIMIT = 60;
 const EXPIRING_SOON_DAYS = 30;
 const FORECAST_HISTORY_DAYS = 84;
 const MAINTENANCE_SOON_DAYS = 30;
+const MAINTENANCE_REQUEST_FETCH_LIMIT = 120;
 
 function emptyMaterialForm(dept = "") {
   return {
@@ -103,6 +104,20 @@ function emptyMaterialForm(dept = "") {
     material_responsible: "",
   };
 }
+
+function emptyMaintenanceRequestForm(material = null) {
+  return {
+    material_id: material?.id || "",
+    condition: material?.condition || "Good",
+    maintenance_date: new Date().toISOString().slice(0, 10),
+    next_due_at: material?.maintenance_due_at || "",
+    maintenance_type: "Preventive maintenance",
+    service_provider: "",
+    technician: "",
+    cost: "",
+    notes: "",
+  };
+}
 const CULTURE_FETCH_LIMIT = 100;
 const CULTURE_TYPES = [
   { value: "fungi", label: "Fungi" },
@@ -118,6 +133,7 @@ const CULTURE_STATUS_OPTIONS = [
 const CLEAR_TARGET_OPTIONS = [
   { value: "logs", label: "Logs only" },
   { value: "chats", label: "Chats only" },
+  { value: "approval_logs", label: "Material approval logs only" },
   { value: "both", label: "Logs and chats" },
 ];
 
@@ -125,7 +141,7 @@ const CLEAR_PERIOD_OPTIONS = [
   { value: "week", label: "Last week", hint: "Deletes records from the last 7 days" },
   { value: "month", label: "Last month", hint: "Deletes records from the last 30 days" },
   { value: "year", label: "Last year", hint: "Deletes records from the last 365 days" },
-  { value: "all", label: "All records", hint: "Deletes all selected logs/chats" },
+  { value: "all", label: "All records", hint: "Deletes all matching records in the selected category" },
 ];
 
 function displayQty(value) {
@@ -461,7 +477,7 @@ function MaterialDetails({ material }) {
 
   const detailRows = [
     ["Department", material.dept || "Not specified"],
-    ["MR — Material Responsible", material.material_responsible || "Not assigned"],
+    ["MR — Material Responsibility", material.material_responsible || "Not assigned"],
     ["Category", material.category || "Uncategorized"],
     ["Material type", materialTypeLabel(material.material_type)],
     ["Current quantity", `${displayQty(material.qty)} ${material.unit || ""}`.trim()],
@@ -890,17 +906,19 @@ function OverdueBorrowsTable({ rows, onReturn }) {
   );
 }
 
-function MaintenanceTable({ rows, onMaintenance }) {
+function MaintenanceTable({ rows, onMaintenance = null, actionLabel = "Update" }) {
+  const columnCount = onMaintenance ? 9 : 8;
   return (
     <div className="lt-table-wrap">
       <table className="lt-table">
         <thead>
           <tr>
-            <th>Status</th><th>Department</th><th>Equipment / Material</th><th>Category</th><th>Condition</th><th>Last maintenance</th><th>Next due</th><th>Note</th><th>Action</th>
+            <th>Status</th><th>Department</th><th>Equipment / Material</th><th>Category</th><th>Condition</th><th>Last maintenance</th><th>Next due</th><th>Note</th>
+            {onMaintenance && <th>Action</th>}
           </tr>
         </thead>
         <tbody>
-          {rows.length === 0 && <tr><td colSpan="9"><div className="lt-empty">No maintenance records found.</div></td></tr>}
+          {rows.length === 0 && <tr><td colSpan={columnCount}><div className="lt-empty">No maintainable equipment found.</div></td></tr>}
           {rows.map((row) => {
             const status = maintenanceStatusOf(row);
             return (
@@ -908,15 +926,62 @@ function MaintenanceTable({ rows, onMaintenance }) {
                 <td><span className={`lt-tag lt-tag-${status === "overdue" ? "critical" : status === "due" ? "warning" : "ok"}`}>{maintenanceLabel[status]}</span></td>
                 <td>{row.dept}</td>
                 <td><strong>{row.name}</strong></td>
-                <td>{row.category || "Uncategorized"}</td>
+                <td>{row.category || "Equipment"}</td>
                 <td>{row.condition || "Good"}</td>
                 <td className="lt-mono" style={{ fontSize: 12 }}>{row.last_maintenance_at ? fmtDate(row.last_maintenance_at) : "Not set"}</td>
                 <td className="lt-mono" style={{ fontSize: 12 }}>{row.maintenance_due_at ? fmtDate(row.maintenance_due_at) : "Not set"}</td>
                 <td>{row.maintenance_note || "—"}</td>
-                <td><button className="lt-btn lt-btn-accent lt-btn-sm" onClick={() => onMaintenance(row)}><CalendarClock size={13} /> Update</button></td>
+                {onMaintenance && (
+                  <td><button className="lt-btn lt-btn-accent lt-btn-sm" onClick={() => onMaintenance(row)}><CalendarClock size={13} /> {actionLabel}</button></td>
+                )}
               </tr>
             );
           })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function MaintenanceRequestsTable({ rows, isAdmin = false, onApprove = null, onReject = null }) {
+  const columns = isAdmin ? 11 : 9;
+  return (
+    <div className="lt-table-wrap">
+      <table className="lt-table">
+        <thead>
+          <tr>
+            <th>Status</th>
+            {isAdmin && <th>Department</th>}
+            <th>Equipment</th><th>Maintenance type</th><th>Requested / maintenance date</th><th>Next due</th><th>Condition</th><th>Provider / technician</th><th>Cost</th><th>Notes / admin review</th>
+            {isAdmin && <th>Action</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 && <tr><td colSpan={columns}><div className="lt-empty">No equipment maintenance requests yet.</div></td></tr>}
+          {rows.map((request) => (
+            <tr key={request.id}>
+              <td><span className={`lt-tag lt-tag-${request.status || "pending"}`}>{request.status || "pending"}</span></td>
+              {isAdmin && <td>{request.dept}</td>}
+              <td><strong>{request.material_name}</strong><div className="lt-request-meta">Requested by {request.requester_name || "Unknown user"}</div></td>
+              <td>{request.maintenance_type || "Maintenance"}</td>
+              <td className="lt-mono" style={{ fontSize: 12 }}>{request.created_at ? fmtTime(request.created_at) : "—"}<div className="lt-request-meta">Service: {request.maintenance_date ? fmtDate(request.maintenance_date) : "Not set"}</div></td>
+              <td className="lt-mono" style={{ fontSize: 12 }}>{request.next_due_at ? fmtDate(request.next_due_at) : "Not set"}</td>
+              <td>{request.condition || "Needs inspection"}</td>
+              <td>{request.service_provider || "Not set"}<div className="lt-request-meta">{request.technician || "No technician assigned"}</div></td>
+              <td className="lt-mono">₱{displayQty(request.cost || 0)}</td>
+              <td>{request.notes || "—"}{request.admin_note && <div className="lt-request-meta"><strong>Admin:</strong> {request.admin_note}{request.reviewer_name ? ` · ${request.reviewer_name}` : ""}</div>}</td>
+              {isAdmin && (
+                <td>
+                  {request.status === "pending" ? (
+                    <div className="lt-action-stack">
+                      <button className="lt-btn lt-btn-accent lt-btn-sm" onClick={() => onApprove?.(request)}><UserCheck size={13} /> Approve</button>
+                      <button className="lt-btn lt-btn-danger lt-btn-sm" onClick={() => onReject?.(request)}><X size={13} /> Reject</button>
+                    </div>
+                  ) : <span className="lt-request-meta">Reviewed {request.reviewed_at ? fmtTime(request.reviewed_at) : ""}</span>}
+                </td>
+              )}
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
@@ -1077,6 +1142,7 @@ export default function App() {
   const [userActivityRows, setUserActivityRows] = useState([]);
   const [overdueBorrows, setOverdueBorrows] = useState([]);
   const [maintenanceRows, setMaintenanceRows] = useState([]);
+  const [maintenanceRequests, setMaintenanceRequests] = useState([]);
   const [cultureLogs, setCultureLogs] = useState([]);
   const [dashboardSummary, setDashboardSummary] = useState(null);
 
@@ -1094,6 +1160,7 @@ export default function App() {
   const [pendingRequestsTotal, setPendingRequestsTotal] = useState(0);
   const [pendingAccountsTotal, setPendingAccountsTotal] = useState(0);
   const [pendingSuppliersTotal, setPendingSuppliersTotal] = useState(0);
+  const [pendingMaintenanceRequestsTotal, setPendingMaintenanceRequestsTotal] = useState(0);
   const [adminActiveDept, setAdminActiveDept] = useState(DEPARTMENTS[0]);
   const [searchMaterials, setSearchMaterials] = useState("");
   const [searchRequests, setSearchRequests] = useState("");
@@ -1128,6 +1195,7 @@ export default function App() {
   const [activeBorrow, setActiveBorrow] = useState(null);
   const [activeLog, setActiveLog] = useState(null);
   const [activeCulture, setActiveCulture] = useState(null);
+  const [activeMaintenanceRequest, setActiveMaintenanceRequest] = useState(null);
   const [requestForm, setRequestForm] = useState(() => emptyMaterialForm());
   const [supplierForm, setSupplierForm] = useState({ dept: "All", name: "", contact_person: "", phone: "", email: "", material_category: "", material_name: "", price_per_unit: "", unit: "", notes: "" });
   const [transferForm, setTransferForm] = useState({ target_dept: DEPARTMENTS[1], qty: "", reason: "" });
@@ -1136,6 +1204,7 @@ export default function App() {
   const [returnForm, setReturnForm] = useState({ qty: "", note: "" });
   const [correctForm, setCorrectForm] = useState({ qty: "", reason: "" });
   const [maintenanceForm, setMaintenanceForm] = useState({ condition: "Good", last_maintenance_at: "", maintenance_due_at: "", maintenance_note: "" });
+  const [maintenanceRequestForm, setMaintenanceRequestForm] = useState(() => emptyMaintenanceRequestForm());
   const [cultureForm, setCultureForm] = useState({
     organism_type: "fungi",
     culture_name: "",
@@ -1284,6 +1353,14 @@ export default function App() {
       setPendingRequestsTotal(res.count || 0);
     });
 
+    const pendingMaintenanceCountQuery = isAdmin
+      ? supabase.from("maintenance_requests").select("id", { count: "exact", head: true }).eq("status", "pending")
+      : supabase.from("maintenance_requests").select("id", { count: "exact", head: true }).eq("requested_by", session.user.id).eq("status", "pending");
+    run(pendingMaintenanceCountQuery, (res) => {
+      if (res.error) throw res.error;
+      setPendingMaintenanceRequestsTotal(res.count || 0);
+    });
+
     if (isAdmin) {
       run(
         supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pending"),
@@ -1313,7 +1390,8 @@ export default function App() {
     const shouldLoadRestockRequests = isAdmin && (["overview", "restockOrders"].includes(tab) || (tab === "reports" && reportType === "restock"));
     const shouldLoadUserActivity = isAdmin && ["overview", "userActivity", "reports"].includes(tab);
     const shouldLoadOverdueBorrows = isAdmin && ["overview", "overdue", "reports"].includes(tab);
-    const shouldLoadMaintenance = isAdmin && ["overview", "maintenance", "reports"].includes(tab);
+    const shouldLoadMaintenance = tab === "maintenance" || (isAdmin && ["overview", "reports"].includes(tab));
+    const shouldLoadMaintenanceRequests = tab === "maintenance" || (isAdmin && tab === "overview");
     const shouldLoadCultures = tab === "cultureLogs" && (isAdmin || userDept === VIPM_DEPARTMENT);
 
     if (shouldLoadSummary) {
@@ -1529,11 +1607,26 @@ export default function App() {
         .eq("material_type", "non_consumable")
         .order("maintenance_due_at", { ascending: true, nullsFirst: false })
         .limit(120);
-      if (maintenanceDeptFilter !== "All") maintenanceQuery = maintenanceQuery.eq("dept", maintenanceDeptFilter);
+      if (!isAdmin) maintenanceQuery = maintenanceQuery.eq("dept", userDept);
+      if (isAdmin && maintenanceDeptFilter !== "All") maintenanceQuery = maintenanceQuery.eq("dept", maintenanceDeptFilter);
       if (term) maintenanceQuery = maintenanceQuery.or(`name.ilike.%${term}%,category.ilike.%${term}%,condition.ilike.%${term}%,maintenance_note.ilike.%${term}%`);
       run(maintenanceQuery, (res) => {
         if (res.error) throw res.error;
         setMaintenanceRows(res.data || []);
+      });
+    }
+
+    if (shouldLoadMaintenanceRequests) {
+      let maintenanceRequestsQuery = supabase
+        .from("maintenance_requests")
+        .select("id, dept, material_id, material_name, requested_by, requester_name, condition, maintenance_date, next_due_at, maintenance_type, service_provider, technician, cost, notes, status, admin_note, reviewed_by, reviewer_name, reviewed_at, created_at, updated_at")
+        .order("created_at", { ascending: false })
+        .limit(MAINTENANCE_REQUEST_FETCH_LIMIT);
+      if (!isAdmin) maintenanceRequestsQuery = maintenanceRequestsQuery.eq("requested_by", session.user.id);
+      if (isAdmin && maintenanceDeptFilter !== "All") maintenanceRequestsQuery = maintenanceRequestsQuery.eq("dept", maintenanceDeptFilter);
+      run(maintenanceRequestsQuery, (res) => {
+        if (res.error) throw res.error;
+        setMaintenanceRequests(res.data || []);
       });
     }
 
@@ -1857,6 +1950,7 @@ export default function App() {
   const userTabs = [
     { key: "inventory", label: "Inventory", icon: LayoutGrid, badge: lowInDept },
     { key: "requests", label: "Requests", icon: AlertTriangle, badge: pendingRequestsTotal },
+    { key: "maintenance", label: "Maintenance", icon: CalendarClock, badge: pendingMaintenanceRequestsTotal },
     { key: "history", label: "History", icon: HistoryIcon },
     ...(userDept === VIPM_DEPARTMENT
       ? [{ key: "cultureLogs", label: "Fungi & Bacteria", icon: Beaker, badge: cultureSummary.ready }]
@@ -1876,7 +1970,7 @@ export default function App() {
     { key: "alerts", label: "Alerts", icon: Bell, badge: unreadAlertCount },
     { key: "userActivity", label: "User Activity", icon: UserCheck },
     { key: "overdue", label: "Overdue", icon: AlertTriangle, badge: overdueBorrowCount },
-    { key: "maintenance", label: "Maintenance", icon: CalendarClock, badge: maintenanceDueCount },
+    { key: "maintenance", label: "Maintenance", icon: CalendarClock, badge: maintenanceDueCount + pendingMaintenanceRequestsTotal },
     { key: "reports", label: "Reports", icon: FileSpreadsheet },
     { key: "logs", label: "Logs", icon: ClipboardList },
     { key: "support", label: "Support", icon: MessageCircle, badge: totalUnreadChats },
@@ -2004,13 +2098,14 @@ export default function App() {
     setAppMessage("");
   }
 
-  function openModal(mode, material = null, request = null, account = null, borrow = null, log = null) {
+  function openModal(mode, material = null, request = null, account = null, borrow = null, log = null, maintenanceRequest = null) {
     setModalMode(mode);
     setActiveMaterial(material);
     setActiveRequest(request);
     setActiveAccount(account);
     setActiveBorrow(borrow);
     setActiveLog(log);
+    setActiveMaintenanceRequest(maintenanceRequest);
     setFormError("");
     setReviewNote("");
     setMaterialResponsible(mode === "approve" ? (request?.material_responsible || request?.requester_name || "") : "");
@@ -2027,6 +2122,10 @@ export default function App() {
     if (mode === "return") setReturnForm({ qty: borrow ? String(Number(borrow.qty_borrowed || 0) - Number(borrow.qty_returned || 0)) : "", note: "" });
     if (mode === "correct") setCorrectForm({ qty: material ? String(material.qty) : "", reason: "" });
     if (mode === "maintenance") setMaintenanceForm({ condition: material?.condition || "Good", last_maintenance_at: material?.last_maintenance_at || "", maintenance_due_at: material?.maintenance_due_at || "", maintenance_note: material?.maintenance_note || "" });
+    if (mode === "maintenanceRequest" || mode === "maintenanceAdmin") {
+      const target = material || maintenanceRows[0] || null;
+      setMaintenanceRequestForm(emptyMaintenanceRequestForm(target));
+    }
     if (mode === "culture") setCultureForm({
       organism_type: "fungi",
       culture_name: "",
@@ -2047,6 +2146,7 @@ export default function App() {
     setActiveBorrow(null);
     setActiveLog(null);
     setActiveCulture(null);
+    setActiveMaintenanceRequest(null);
     setFormError("");
     setReviewNote("");
     setMaterialResponsible("");
@@ -2055,7 +2155,7 @@ export default function App() {
   async function submitItemRequest() {
     const { name, category, material_type, qty, unit, threshold, expires_at, purpose, price_per_unit, supplier_name, hazard_level, storage_instruction, handling_instruction, disposal_instruction, ppe_required, incompatible_with, compatibility_notes, condition, last_maintenance_at, maintenance_due_at, maintenance_note, material_responsible } = requestForm;
     if (!name.trim() || !unit.trim() || qty === "" || threshold === "" || !purpose.trim() || !material_responsible.trim()) {
-      setFormError("Fill in name, quantity, unit, threshold, request purpose, and MR (Material Responsible).");
+      setFormError("Fill in name, quantity, unit, threshold, request purpose, and MR (Material Responsibility).");
       return;
     }
     if (material_type === "non_consumable" && (!condition.trim() || !maintenance_due_at)) {
@@ -2115,7 +2215,7 @@ export default function App() {
       return;
     }
     if (!name.trim() || !unit.trim() || qty === "" || threshold === "" || !material_responsible.trim()) {
-      setFormError("Fill in department, name, quantity, unit, threshold, and MR (Material Responsible).");
+      setFormError("Fill in department, name, quantity, unit, threshold, and MR (Material Responsibility).");
       return;
     }
     if (Number(qty) < 0 || Number(threshold) < 0) {
@@ -2358,7 +2458,7 @@ export default function App() {
 
   async function approveRequest(request) {
     if (!materialResponsible.trim()) {
-      setFormError("Assign an MR (Material Responsible) before approving this material.");
+      setFormError("Assign an MR (Material Responsibility) before approving this material.");
       return;
     }
     setBusy(true);
@@ -2528,7 +2628,7 @@ export default function App() {
 
     const result = Array.isArray(data) ? data[0] : data;
     closeModal();
-    setAppMessage(`Clear finished. Deleted ${result?.deleted_logs || 0} logs and ${result?.deleted_chats || 0} chat messages.`);
+    setAppMessage(`Clear finished. Deleted ${result?.deleted_logs || 0} general logs, ${result?.deleted_approval_logs || 0} material approval logs, and ${result?.deleted_chats || 0} chat messages.`);
     setLogsPage(0);
     loadData();
   }
@@ -2731,6 +2831,93 @@ export default function App() {
       return;
     }
     closeModal();
+    loadData();
+  }
+
+  async function submitMaintenanceRequest(directAdmin = false) {
+    const target = maintenanceRows.find((row) => row.id === maintenanceRequestForm.material_id) || activeMaterial;
+    if (!target) {
+      setFormError("Choose the equipment that needs maintenance.");
+      return;
+    }
+    if (target.material_type !== "non_consumable") {
+      setFormError("Maintenance applies only to equipment and other non-consumable materials.");
+      return;
+    }
+    if (!maintenanceRequestForm.condition.trim() || !maintenanceRequestForm.maintenance_date || !maintenanceRequestForm.maintenance_type.trim()) {
+      setFormError("Enter the equipment condition, maintenance date, and maintenance type.");
+      return;
+    }
+    if (maintenanceRequestForm.next_due_at && maintenanceRequestForm.next_due_at < maintenanceRequestForm.maintenance_date) {
+      setFormError("The next maintenance due date cannot be earlier than the maintenance date.");
+      return;
+    }
+    if (Number(maintenanceRequestForm.cost || 0) < 0) {
+      setFormError("Maintenance cost cannot be negative.");
+      return;
+    }
+
+    setBusy(true);
+    setFormError("");
+    const rpcName = directAdmin ? "create_maintenance_record_admin" : "submit_maintenance_request";
+    const { error } = await supabase.rpc(rpcName, {
+      material_id_param: target.id,
+      condition_param: maintenanceRequestForm.condition.trim(),
+      maintenance_date_param: maintenanceRequestForm.maintenance_date,
+      next_due_param: maintenanceRequestForm.next_due_at || null,
+      maintenance_type_param: maintenanceRequestForm.maintenance_type.trim(),
+      service_provider_param: maintenanceRequestForm.service_provider.trim() || null,
+      technician_param: maintenanceRequestForm.technician.trim() || null,
+      cost_param: Number(maintenanceRequestForm.cost || 0),
+      notes_param: maintenanceRequestForm.notes.trim() || null,
+      admin_note_param: directAdmin ? "Added directly by administrator" : null,
+    });
+    setBusy(false);
+    if (error) {
+      setFormError(error.message);
+      return;
+    }
+    closeModal();
+    setAppMessage(directAdmin ? "Maintenance record added and the equipment schedule was updated." : "Maintenance request submitted for administrator approval.");
+    setTab("maintenance");
+    loadData();
+  }
+
+  async function approveMaintenanceRequest(request) {
+    setBusy(true);
+    setFormError("");
+    const { error } = await supabase.rpc("approve_maintenance_request", {
+      request_id_param: request.id,
+      admin_note_param: reviewNote.trim() || "Approved by admin",
+    });
+    setBusy(false);
+    if (error) {
+      setFormError(error.message);
+      return;
+    }
+    closeModal();
+    setAppMessage("Maintenance request approved and the equipment schedule was updated.");
+    loadData();
+  }
+
+  async function rejectMaintenanceRequest(request) {
+    if (!reviewNote.trim()) {
+      setFormError("Enter a reason before rejecting the maintenance request.");
+      return;
+    }
+    setBusy(true);
+    setFormError("");
+    const { error } = await supabase.rpc("reject_maintenance_request", {
+      request_id_param: request.id,
+      admin_note_param: reviewNote.trim(),
+    });
+    setBusy(false);
+    if (error) {
+      setFormError(error.message);
+      return;
+    }
+    closeModal();
+    setAppMessage("Maintenance request rejected.");
     loadData();
   }
 
@@ -3371,7 +3558,35 @@ export default function App() {
         .lt-table tbody tr { transition:background .22s ease, transform .22s ease; }
         .lt-table tbody tr:hover { background:var(--paper); }
         .lt-date-icon { transition:transform .25s cubic-bezier(.22,1,.36,1), background .25s ease; }
-        .lt-date-icon:hover { transform:translateY(-50%) scale(1.09); }
+        .lt-date-icon:hover { transform:translateY(-50%) scale(1.07); }
+
+        /* Performance-focused motion: short, GPU-friendly transitions without blur jank. */
+        .lt-btn, .lt-sidebar-tab, .lt-card, .lt-stat-card, .lt-request-card, .lt-culture-card,
+        .lt-table-wrap, .lt-chat-wrap, .lt-conv-list, .lt-maintenance-form, .lt-note,
+        .lt-add-card, .lt-subtab, .lt-material-detail-row, .lt-modal-close, .lt-date-icon {
+          backface-visibility:hidden;
+          -webkit-font-smoothing:antialiased;
+        }
+        .lt-card, .lt-stat-card, .lt-request-card, .lt-culture-card, .lt-table-wrap,
+        .lt-chat-wrap, .lt-conv-list, .lt-maintenance-form, .lt-note, .lt-add-card {
+          transition-duration:.26s;
+          transition-timing-function:cubic-bezier(.2,.8,.2,1);
+        }
+        .lt-card:hover { transform:translate3d(0,-4px,0) scale(1.008); }
+        .lt-card-clickable:hover, .lt-card-clickable:focus-visible { transform:translate3d(0,-5px,0) scale(1.01); }
+        .lt-stat-card:hover { transform:translate3d(0,-4px,0) scale(1.01); }
+        .lt-request-card:hover, .lt-culture-card:hover { transform:translate3d(0,-3px,0) scale(1.004); }
+        .lt-table-wrap:hover, .lt-chat-wrap:hover, .lt-conv-list:hover, .lt-maintenance-form:hover, .lt-note:hover {
+          transform:translate3d(0,-2px,0) scale(1.002);
+        }
+        @media (prefers-reduced-motion: no-preference) {
+          .lt-scroll-reveal {
+            filter:none;
+            transform:translate3d(0,12px,0) scale(.996);
+            transition:opacity .42s cubic-bezier(.2,.8,.2,1) var(--lt-reveal-delay,0ms), transform .46s cubic-bezier(.2,.8,.2,1) var(--lt-reveal-delay,0ms);
+          }
+          .lt-scroll-reveal.lt-reveal-visible { filter:none; will-change:auto; }
+        }
 
         @media (max-width: 860px) {
           .lt-shell { flex-direction:column; }
@@ -3523,7 +3738,7 @@ export default function App() {
                   {EXPORT_FORMAT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </div>
-              {isAdmin && <button className="lt-btn lt-btn-ghost" disabled={busy} onClick={() => openModal("cleanup")}>Clear logs/chat</button>}
+              {isAdmin && <button className="lt-btn lt-btn-ghost" disabled={busy} onClick={() => openModal("cleanup")}>Clear activity records</button>}
               <button className="lt-btn lt-btn-ghost" disabled={busy} onClick={loadData}>Refresh current page</button>
             </div>
 
@@ -3600,12 +3815,30 @@ export default function App() {
                           <strong>{request.status === "approved" ? "Approved" : "Rejected"} by:</strong> {request.reviewer_name || "Admin"}{request.reviewed_at ? ` · ${fmtTime(request.reviewed_at)}` : ""}
                         </div>
                       )}
-                      {request.material_responsible && <div className="lt-request-meta"><strong>MR (Material Responsible):</strong> {request.material_responsible}</div>}
+                      {request.material_responsible && <div className="lt-request-meta"><strong>MR (Material Responsibility):</strong> {request.material_responsible}</div>}
                       {request.admin_note && <div className="lt-request-meta"><strong>Admin note:</strong> {request.admin_note}</div>}
                     </div>
                   ))}
                 </div>
                 <PaginationControls page={requestsPage} pageSize={REQUESTS_PAGE_SIZE} total={requestsTotal} onPage={setRequestsPage} label="requests" />
+              </>
+            )}
+
+            {!isAdmin && tab === "maintenance" && (
+              <>
+                <div className="lt-header">
+                  <div>
+                    <div className="lt-h1">Equipment maintenance</div>
+                    <div className="lt-h1-sub">Request cleaning, calibration, inspection, or repair. An administrator must approve every submitted maintenance entry.</div>
+                  </div>
+                  <button className="lt-btn lt-btn-accent" disabled={!maintenanceRows.length} onClick={() => openModal("maintenanceRequest")}>
+                    <Plus size={14} /> Request maintenance
+                  </button>
+                </div>
+                <div className="lt-section-title">Maintainable equipment in {userDept}</div>
+                <MaintenanceTable rows={maintenanceRows} onMaintenance={(material) => openModal("maintenanceRequest", material)} actionLabel="Request" />
+                <div className="lt-section-title" style={{ marginTop: 22 }}>My maintenance requests</div>
+                <MaintenanceRequestsTable rows={maintenanceRequests} />
               </>
             )}
 
@@ -3745,7 +3978,7 @@ export default function App() {
                           <strong>{request.status === "approved" ? "Approved" : "Rejected"} by:</strong> {request.reviewer_name || "Admin"}{request.reviewed_at ? ` · ${fmtTime(request.reviewed_at)}` : ""}
                         </div>
                       )}
-                      {request.material_responsible && <div className="lt-request-meta"><strong>MR (Material Responsible):</strong> {request.material_responsible}</div>}
+                      {request.material_responsible && <div className="lt-request-meta"><strong>MR (Material Responsibility):</strong> {request.material_responsible}</div>}
                       {request.admin_note && <div className="lt-request-meta"><strong>Admin note:</strong> {request.admin_note}</div>}
                       {request.status === "pending" && (
                         <div className="lt-request-actions">
@@ -4023,9 +4256,14 @@ export default function App() {
                 <div className="lt-header">
                   <div>
                     <div className="lt-h1">Equipment maintenance</div>
-                    <div className="lt-h1-sub">Track condition, last maintenance, next due date, and notes</div>
+                    <div className="lt-h1-sub">Add maintenance records directly or approve department maintenance requests</div>
                   </div>
-                  <button className="lt-btn lt-btn-ghost" onClick={exportMaintenanceCsv}><Download size={14} /> Export</button>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button className="lt-btn lt-btn-ghost" onClick={exportMaintenanceCsv}><Download size={14} /> Export equipment</button>
+                    <button className="lt-btn lt-btn-accent" disabled={!maintenanceRows.length} onClick={() => openModal("maintenanceAdmin")}>
+                      <Plus size={14} /> Add maintenance record
+                    </button>
+                  </div>
                 </div>
                 <div className="lt-filter-row">
                   <SearchBox
@@ -4039,6 +4277,14 @@ export default function App() {
                     {DEPARTMENTS.map((department) => <option key={department} value={department}>{department}</option>)}
                   </select>
                 </div>
+                <div className="lt-section-title">Pending and reviewed maintenance requests</div>
+                <MaintenanceRequestsTable
+                  rows={maintenanceRequests}
+                  isAdmin
+                  onApprove={(request) => openModal("approveMaintenance", null, null, null, null, null, request)}
+                  onReject={(request) => openModal("rejectMaintenance", null, null, null, null, null, request)}
+                />
+                <div className="lt-section-title" style={{ marginTop: 22 }}>Current equipment maintenance schedule</div>
                 <MaintenanceTable rows={maintenanceRows} onMaintenance={(m) => openModal("maintenance", m)} />
               </>
             )}
@@ -4308,9 +4554,9 @@ export default function App() {
       )}
 
       {modalMode === "cleanup" && (
-        <Modal title="Clear logs/chat" onClose={closeModal}>
+        <Modal title="Clear activity records" onClose={closeModal}>
           <div className="lt-error-box">
-            This permanently deletes the selected activity records. Use this only after exporting or checking anything important.
+            This permanently deletes the selected activity records. Material approval logs remove only approved/rejected approval entries and never delete pending requests or approved inventory materials.
           </div>
           <div className="lt-field" style={{ marginTop: 14 }}>
             <label className="lt-label">What do you want to clear?</label>
@@ -4319,6 +4565,11 @@ export default function App() {
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
+            {clearForm.target === "approval_logs" && (
+              <div className="lt-modal-hint" style={{ margin: "8px 0 0" }}>
+                Deletes only activity-log entries created when material requests were approved or rejected. Pending requests and inventory materials are preserved.
+              </div>
+            )}
           </div>
           <div className="lt-field">
             <label className="lt-label">Date range</label>
@@ -4415,13 +4666,13 @@ export default function App() {
             <input className="lt-input" maxLength={255} value={requestForm.name} onChange={(e) => setRequestForm({ ...requestForm, name: e.target.value })} placeholder="e.g. Acetone" />
           </div>
           <div className="lt-field">
-            <label className="lt-label">MR — Material Responsible</label>
+            <label className="lt-label">MR — Material Responsibility</label>
             <input
               className="lt-input"
               maxLength={255}
               value={requestForm.material_responsible}
               onChange={(e) => setRequestForm({ ...requestForm, material_responsible: e.target.value })}
-              placeholder="Full name of the person accountable for this material"
+              placeholder="Full name of the person assigned responsibility for this material"
             />
             <div className="lt-field-help">Required for both user requests and direct admin additions. The approving admin may still confirm or change this assignment.</div>
           </div>
@@ -4643,9 +4894,9 @@ export default function App() {
           </div>
           {modalMode === "approve" && (
             <div className="lt-field">
-              <label className="lt-label">MR — Material Responsible</label>
-              <input className="lt-input" maxLength={255} value={materialResponsible} onChange={(e) => setMaterialResponsible(e.target.value)} placeholder="Full name of the person responsible for this material" />
-              <div className="lt-field-help">This person is accountable for receiving, safekeeping, monitoring, and coordinating the material.</div>
+              <label className="lt-label">MR — Material Responsibility</label>
+              <input className="lt-input" maxLength={255} value={materialResponsible} onChange={(e) => setMaterialResponsible(e.target.value)} placeholder="Full name of the person assigned material responsibility" />
+              <div className="lt-field-help">Assign the person who holds responsibility for receiving, safekeeping, monitoring, and coordinating this material.</div>
             </div>
           )}
           <div className="lt-field">
@@ -4657,6 +4908,97 @@ export default function App() {
             <button className="lt-btn lt-btn-primary" disabled={busy} onClick={() => approveRequest(activeRequest)}>{busy ? "Approving…" : "Approve and add to stocks"}</button>
           ) : (
             <button className="lt-btn lt-btn-danger" style={{ width: "100%", padding: "11px 16px" }} disabled={busy} onClick={() => rejectRequest(activeRequest)}>{busy ? "Rejecting…" : "Reject request"}</button>
+          )}
+        </Modal>
+      )}
+
+      {(modalMode === "maintenanceRequest" || modalMode === "maintenanceAdmin") && (
+        <Modal title={modalMode === "maintenanceAdmin" ? "Add equipment maintenance record" : "Request equipment maintenance"} onClose={closeModal}>
+          <div className="lt-modal-hint">
+            {modalMode === "maintenanceAdmin"
+              ? "This administrator entry is applied immediately and does not require approval."
+              : "Your department request stays pending until an administrator approves it."}
+          </div>
+          <div className="lt-field">
+            <label className="lt-label">Equipment / non-consumable material</label>
+            <select
+              className="lt-select"
+              value={maintenanceRequestForm.material_id}
+              onChange={(e) => {
+                const selected = maintenanceRows.find((row) => row.id === e.target.value);
+                setMaintenanceRequestForm({
+                  ...maintenanceRequestForm,
+                  material_id: e.target.value,
+                  condition: selected?.condition || maintenanceRequestForm.condition || "Good",
+                  next_due_at: selected?.maintenance_due_at || maintenanceRequestForm.next_due_at,
+                });
+              }}
+            >
+              <option value="">Select equipment</option>
+              {maintenanceRows.map((row) => <option key={row.id} value={row.id}>{row.name} — {row.dept}</option>)}
+            </select>
+          </div>
+          <div className="lt-form-row">
+            <div className="lt-field">
+              <label className="lt-label">Maintenance type</label>
+              <input className="lt-input" maxLength={255} value={maintenanceRequestForm.maintenance_type} onChange={(e) => setMaintenanceRequestForm({ ...maintenanceRequestForm, maintenance_type: e.target.value })} placeholder="Preventive maintenance, calibration, repair..." />
+            </div>
+            <div className="lt-field">
+              <label className="lt-label">Condition after / expected condition</label>
+              <input className="lt-input" maxLength={255} value={maintenanceRequestForm.condition} onChange={(e) => setMaintenanceRequestForm({ ...maintenanceRequestForm, condition: e.target.value })} placeholder="Good, repaired, needs inspection..." />
+            </div>
+          </div>
+          <div className="lt-form-row">
+            <div className="lt-field">
+              <label className="lt-label">Maintenance date</label>
+              <DateInput value={maintenanceRequestForm.maintenance_date} onChange={(e) => setMaintenanceRequestForm({ ...maintenanceRequestForm, maintenance_date: e.target.value })} ariaLabel="Choose maintenance date" />
+            </div>
+            <div className="lt-field">
+              <label className="lt-label">Next maintenance due <span className="lt-optional">(optional)</span></label>
+              <DateInput value={maintenanceRequestForm.next_due_at} min={maintenanceRequestForm.maintenance_date || undefined} onChange={(e) => setMaintenanceRequestForm({ ...maintenanceRequestForm, next_due_at: e.target.value })} ariaLabel="Choose next maintenance due date" />
+            </div>
+          </div>
+          <div className="lt-form-row">
+            <div className="lt-field">
+              <label className="lt-label">Service provider <span className="lt-optional">(optional)</span></label>
+              <input className="lt-input" maxLength={255} value={maintenanceRequestForm.service_provider} onChange={(e) => setMaintenanceRequestForm({ ...maintenanceRequestForm, service_provider: e.target.value })} placeholder="Internal lab, service company..." />
+            </div>
+            <div className="lt-field">
+              <label className="lt-label">Technician / person assigned <span className="lt-optional">(optional)</span></label>
+              <input className="lt-input" maxLength={255} value={maintenanceRequestForm.technician} onChange={(e) => setMaintenanceRequestForm({ ...maintenanceRequestForm, technician: e.target.value })} placeholder="Technician name" />
+            </div>
+          </div>
+          <div className="lt-field">
+            <label className="lt-label">Estimated / actual cost <span className="lt-optional">(optional)</span></label>
+            <input className="lt-input" type="number" min="0" step="0.01" value={maintenanceRequestForm.cost} onChange={(e) => setMaintenanceRequestForm({ ...maintenanceRequestForm, cost: e.target.value })} placeholder="₱0.00" />
+          </div>
+          <div className="lt-field">
+            <label className="lt-label">Maintenance notes <span className="lt-optional">(optional)</span></label>
+            <textarea className="lt-textarea" maxLength={1000} value={maintenanceRequestForm.notes} onChange={(e) => setMaintenanceRequestForm({ ...maintenanceRequestForm, notes: e.target.value })} placeholder="Problem observed, work required, parts replaced, calibration result..." />
+          </div>
+          {formError && <div className="lt-error">{formError}</div>}
+          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={() => submitMaintenanceRequest(modalMode === "maintenanceAdmin")}>
+            {busy ? "Saving…" : modalMode === "maintenanceAdmin" ? "Add maintenance record" : "Submit for admin approval"}
+          </button>
+        </Modal>
+      )}
+
+      {(modalMode === "approveMaintenance" || modalMode === "rejectMaintenance") && activeMaintenanceRequest && (
+        <Modal title={`${modalMode === "approveMaintenance" ? "Approve" : "Reject"} maintenance request`} onClose={closeModal}>
+          <div className="lt-modal-hint">
+            <strong>{activeMaintenanceRequest.material_name}</strong><br />
+            {activeMaintenanceRequest.dept} · {activeMaintenanceRequest.maintenance_type || "Maintenance"} · requested by {activeMaintenanceRequest.requester_name || "Unknown user"}
+            <br />Maintenance date: {activeMaintenanceRequest.maintenance_date ? fmtDate(activeMaintenanceRequest.maintenance_date) : "Not set"}
+          </div>
+          <div className="lt-field">
+            <label className="lt-label">{modalMode === "rejectMaintenance" ? "Rejection reason" : "Admin approval note"}</label>
+            <textarea className="lt-textarea" maxLength={1000} value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} placeholder={modalMode === "rejectMaintenance" ? "Required reason shown to the requester" : "Optional approval instruction or note"} />
+          </div>
+          {formError && <div className="lt-error">{formError}</div>}
+          {modalMode === "approveMaintenance" ? (
+            <button className="lt-btn lt-btn-primary" disabled={busy} onClick={() => approveMaintenanceRequest(activeMaintenanceRequest)}>{busy ? "Approving…" : "Approve and update equipment"}</button>
+          ) : (
+            <button className="lt-btn lt-btn-danger" style={{ width: "100%", padding: "11px 16px" }} disabled={busy} onClick={() => rejectMaintenanceRequest(activeMaintenanceRequest)}>{busy ? "Rejecting…" : "Reject maintenance request"}</button>
           )}
         </Modal>
       )}

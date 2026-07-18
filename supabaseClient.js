@@ -19,6 +19,7 @@ const COLLECTIONS = {
   suppliers: "suppliers",
   restock_requests: "restock_requests",
   culture_logs: "culture_logs",
+  maintenance_requests: "maintenance_requests",
 };
 
 const client = isAppwriteConfigured
@@ -651,6 +652,7 @@ async function runRpc(name, args = {}) {
         const days = { week: 7, month: 30, year: 365, all: Infinity }[period] ?? 7;
         const cutoff = Number.isFinite(days) ? Date.now() - days * 86400000 : 0;
         let deletedLogs = 0;
+        let deletedApprovalLogs = 0;
         let deletedChats = 0;
 
         if (target === "logs" || target === "both") {
@@ -659,6 +661,17 @@ async function runRpc(name, args = {}) {
             if (ymdToTime(log.timestamp) >= cutoff) {
               await deleteRow("logs", log.id);
               deletedLogs += 1;
+            }
+          }
+        }
+
+        if (target === "approval_logs") {
+          const logs = await getLogs(500);
+          for (const log of logs) {
+            const isMaterialApproval = ["approved", "rejected"].includes(String(log.type || "").toLowerCase());
+            if (isMaterialApproval && ymdToTime(log.timestamp) >= cutoff) {
+              await deleteRow("logs", log.id);
+              deletedApprovalLogs += 1;
             }
           }
         }
@@ -673,7 +686,11 @@ async function runRpc(name, args = {}) {
           }
         }
 
-        return ok([{ deleted_logs: deletedLogs, deleted_chats: deletedChats }]);
+        return ok([{
+          deleted_logs: deletedLogs,
+          deleted_approval_logs: deletedApprovalLogs,
+          deleted_chats: deletedChats,
+        }]);
       }
 
       case "borrow_material": {
@@ -861,6 +878,159 @@ async function runRpc(name, args = {}) {
         return ok({ transferred: qty });
       }
 
+      case "submit_maintenance_request": {
+        const material = await getById("materials", args.material_id_param);
+        if (material.material_type !== "non_consumable") {
+          throw new Error("Maintenance requests can only be created for equipment and other non-consumable materials.");
+        }
+        if (profile?.role !== "admin" && material.dept !== userDept) {
+          throw new Error("You can request maintenance only for equipment in your department.");
+        }
+
+        const now = isoNow();
+        const request = await createRow("maintenance_requests", {
+          dept: material.dept,
+          material_id: material.id,
+          material_name: material.name,
+          requested_by: userId,
+          requester_name: displayName,
+          condition: args.condition_param || material.condition || "Needs inspection",
+          maintenance_date: args.maintenance_date_param || todayYmd(),
+          next_due_at: args.next_due_param || null,
+          maintenance_type: args.maintenance_type_param || "Preventive maintenance",
+          service_provider: args.service_provider_param || null,
+          technician: args.technician_param || null,
+          cost: Number(args.cost_param || 0),
+          notes: args.notes_param || null,
+          status: "pending",
+          admin_note: null,
+          reviewed_by: null,
+          reviewer_name: null,
+          reviewed_at: null,
+          created_at: now,
+          updated_at: now,
+        });
+        return ok(request);
+      }
+
+      case "create_maintenance_record_admin": {
+        if (profile?.role !== "admin" || profile?.status !== "approved") {
+          throw new Error("Only an approved administrator can add a maintenance record directly.");
+        }
+        const material = await getById("materials", args.material_id_param);
+        if (material.material_type !== "non_consumable") {
+          throw new Error("Maintenance records apply only to equipment and other non-consumable materials.");
+        }
+        const now = isoNow();
+        const maintenanceDate = args.maintenance_date_param || todayYmd();
+        const summary = [
+          args.maintenance_type_param || "Maintenance",
+          args.service_provider_param ? `Provider: ${args.service_provider_param}` : "",
+          args.technician_param ? `Technician: ${args.technician_param}` : "",
+          args.notes_param || "",
+        ].filter(Boolean).join(" · ").slice(0, 1000);
+
+        await updateRow("materials", material.id, {
+          condition: args.condition_param || material.condition || "Good",
+          last_maintenance_at: maintenanceDate,
+          maintenance_due_at: args.next_due_param || null,
+          maintenance_note: summary || null,
+          updated: now,
+        });
+        const request = await createRow("maintenance_requests", {
+          dept: material.dept,
+          material_id: material.id,
+          material_name: material.name,
+          requested_by: userId,
+          requester_name: displayName,
+          condition: args.condition_param || material.condition || "Good",
+          maintenance_date: maintenanceDate,
+          next_due_at: args.next_due_param || null,
+          maintenance_type: args.maintenance_type_param || "Maintenance",
+          service_provider: args.service_provider_param || null,
+          technician: args.technician_param || null,
+          cost: Number(args.cost_param || 0),
+          notes: args.notes_param || null,
+          status: "approved",
+          admin_note: args.admin_note_param || "Added directly by administrator",
+          reviewed_by: userId,
+          reviewer_name: displayName,
+          reviewed_at: now,
+          created_at: now,
+          updated_at: now,
+        });
+        await makeLog({
+          dept: material.dept,
+          material_id: material.id,
+          material_name: material.name,
+          type: "maintenance",
+          qty: 0,
+          detail: summary || "Maintenance record added by administrator",
+          user_id: userId,
+          user_name: displayName,
+        });
+        return ok(request);
+      }
+
+      case "approve_maintenance_request": {
+        if (profile?.role !== "admin" || profile?.status !== "approved") {
+          throw new Error("Only an approved administrator can approve maintenance requests.");
+        }
+        const request = await getById("maintenance_requests", args.request_id_param);
+        const material = await getById("materials", request.material_id);
+        const now = isoNow();
+        const summary = [
+          request.maintenance_type || "Maintenance",
+          request.service_provider ? `Provider: ${request.service_provider}` : "",
+          request.technician ? `Technician: ${request.technician}` : "",
+          request.notes || "",
+        ].filter(Boolean).join(" · ").slice(0, 1000);
+
+        await updateRow("materials", material.id, {
+          condition: request.condition || material.condition || "Good",
+          last_maintenance_at: request.maintenance_date || todayYmd(),
+          maintenance_due_at: request.next_due_at || null,
+          maintenance_note: summary || null,
+          updated: now,
+        });
+        await updateRow("maintenance_requests", request.id, {
+          status: "approved",
+          admin_note: args.admin_note_param || "Approved by admin",
+          reviewed_by: userId,
+          reviewer_name: displayName,
+          reviewed_at: now,
+          updated_at: now,
+        });
+        await makeLog({
+          dept: material.dept,
+          material_id: material.id,
+          material_name: material.name,
+          type: "maintenance",
+          qty: 0,
+          detail: `${summary || "Maintenance request approved"}${args.admin_note_param ? ` · ${args.admin_note_param}` : ""}`.slice(0, 5000),
+          user_id: userId,
+          user_name: displayName,
+        });
+        return ok({ approved: true });
+      }
+
+      case "reject_maintenance_request": {
+        if (profile?.role !== "admin" || profile?.status !== "approved") {
+          throw new Error("Only an approved administrator can reject maintenance requests.");
+        }
+        const request = await getById("maintenance_requests", args.request_id_param);
+        const now = isoNow();
+        await updateRow("maintenance_requests", request.id, {
+          status: "rejected",
+          admin_note: args.admin_note_param || "Rejected by admin",
+          reviewed_by: userId,
+          reviewer_name: displayName,
+          reviewed_at: now,
+          updated_at: now,
+        });
+        return ok({ rejected: true });
+      }
+
       case "update_material_maintenance": {
         const material = await getById("materials", args.material_id_param);
         await updateRow("materials", material.id, {
@@ -884,12 +1054,13 @@ async function runRpc(name, args = {}) {
       }
 
       case "get_dashboard_summary": {
-        const [materials, borrows, restocks, suppliers, logs] = await Promise.all([
+        const [materials, borrows, restocks, suppliers, logs, maintenanceRequests] = await Promise.all([
           getMaterials(),
           getBorrows(),
           listCollection("restock_requests", [Query.limit(500)]),
           listCollection("suppliers", [Query.limit(500)]),
           getLogs(500),
+          listCollection("maintenance_requests", [Query.limit(500)]),
         ]);
         const low = materials.filter((m) => stockKind(m) !== "ok").length;
         const expired = materials.filter((m) => expiryKind(m) === "expired").length;
@@ -914,6 +1085,7 @@ async function runRpc(name, args = {}) {
           active_borrows: activeBorrows,
           overdue_borrows: overdueBorrows,
           maintenance_due: maintenanceDue,
+          pending_maintenance_requests: maintenanceRequests.filter((request) => request.status === "pending").length,
           total_inventory_value: totalValue,
           monthly_usage_cost: monthlyCost,
           open_restock_requests: openRestocks,
@@ -923,10 +1095,11 @@ async function runRpc(name, args = {}) {
 
       case "get_notification_center": {
         const dept = args.dept_param || null;
-        const [materials, borrows, restocks] = await Promise.all([
+        const [materials, borrows, restocks, maintenanceRequests] = await Promise.all([
           getMaterials(),
           getBorrows(),
           listCollection("restock_requests", [Query.limit(500)]),
+          listCollection("maintenance_requests", [Query.limit(500)]),
         ]);
         const rows = [];
         materials
@@ -972,6 +1145,18 @@ async function runRpc(name, args = {}) {
             severity: "critical",
             title: `${b.material_name} borrow is overdue`,
             detail: `${b.borrower_name} has ${Number(b.qty_borrowed || 0) - Number(b.qty_returned || 0)} ${b.unit} due ${b.due_at}.`,
+          }));
+
+
+        maintenanceRequests
+          .filter((request) => (!dept || request.dept === dept) && request.status === "pending")
+          .slice(0, 20)
+          .forEach((request) => rows.push({
+            kind: "maintenance_request",
+            dept: request.dept,
+            severity: "info",
+            title: `${request.material_name} has a pending maintenance request`,
+            detail: `${request.requester_name || "A department user"} requested ${request.maintenance_type || "maintenance"} for ${request.maintenance_date || "an unspecified date"}.`,
           }));
 
         restocks
