@@ -75,6 +75,34 @@ const OVERVIEW_ATTENTION_LIMIT = 60;
 const EXPIRING_SOON_DAYS = 30;
 const FORECAST_HISTORY_DAYS = 84;
 const MAINTENANCE_SOON_DAYS = 30;
+
+function emptyMaterialForm(dept = "") {
+  return {
+    dept,
+    name: "",
+    category: "Chemical",
+    material_type: "consumable",
+    qty: "",
+    unit: "",
+    threshold: "",
+    expires_at: "",
+    purpose: "",
+    price_per_unit: "",
+    supplier_name: "",
+    hazard_level: "Low",
+    storage_instruction: "",
+    handling_instruction: "",
+    disposal_instruction: "",
+    ppe_required: "",
+    incompatible_with: "",
+    compatibility_notes: "",
+    condition: "Good",
+    last_maintenance_at: "",
+    maintenance_due_at: "",
+    maintenance_note: "",
+    material_responsible: "",
+  };
+}
 const CULTURE_FETCH_LIMIT = 100;
 const CULTURE_TYPES = [
   { value: "fungi", label: "Fungi" },
@@ -250,14 +278,23 @@ function StatusDot({ status }) {
   return <span className={`lt-dot lt-dot-${status}`} />;
 }
 
-function Modal({ title, onClose, children }) {
+function Modal({ title, onClose, children, wide = false }) {
+  useEffect(() => {
+    function closeOnEscape(event) {
+      if (event.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
   return (
     <div className="lt-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="lt-modal">
+      <div className={`lt-modal ${wide ? "lt-modal-wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="lt-modal-head">
-          <span>{title}</span>
-          <button className="lt-icon-btn" onClick={onClose} aria-label="Close">
-            <X size={16} />
+          <span className="lt-modal-title">{title}</span>
+          <button className="lt-modal-close" type="button" onClick={onClose} aria-label="Close dialog" title="Close">
+            <X size={18} />
+            <span>Close</span>
           </button>
         </div>
         <div className="lt-modal-body">{children}</div>
@@ -1091,7 +1128,7 @@ export default function App() {
   const [activeBorrow, setActiveBorrow] = useState(null);
   const [activeLog, setActiveLog] = useState(null);
   const [activeCulture, setActiveCulture] = useState(null);
-  const [requestForm, setRequestForm] = useState({ name: "", category: "Chemical", material_type: "consumable", qty: "", unit: "", threshold: "", expires_at: "", purpose: "", price_per_unit: "", supplier_name: "", hazard_level: "Low", storage_instruction: "", handling_instruction: "", disposal_instruction: "", ppe_required: "", incompatible_with: "", compatibility_notes: "", condition: "Good", last_maintenance_at: "", maintenance_due_at: "", maintenance_note: "" });
+  const [requestForm, setRequestForm] = useState(() => emptyMaterialForm());
   const [supplierForm, setSupplierForm] = useState({ dept: "All", name: "", contact_person: "", phone: "", email: "", material_category: "", material_name: "", price_per_unit: "", unit: "", notes: "" });
   const [transferForm, setTransferForm] = useState({ target_dept: DEPARTMENTS[1], qty: "", reason: "" });
   const [useForm, setUseForm] = useState({ qty: "", purpose: "" });
@@ -1977,7 +2014,12 @@ export default function App() {
     setFormError("");
     setReviewNote("");
     setMaterialResponsible(mode === "approve" ? (request?.material_responsible || request?.requester_name || "") : "");
-    if (mode === "request") setRequestForm({ name: "", category: "Chemical", material_type: "consumable", qty: "", unit: "", threshold: "", expires_at: "", purpose: "", price_per_unit: "", supplier_name: "", hazard_level: "Low", storage_instruction: "", handling_instruction: "", disposal_instruction: "", ppe_required: "", incompatible_with: "", compatibility_notes: "", condition: "Good", last_maintenance_at: "", maintenance_due_at: "", maintenance_note: "" });
+    if (mode === "request") {
+      setRequestForm({ ...emptyMaterialForm(userDept), material_responsible: displayName });
+    }
+    if (mode === "adminAddMaterial") {
+      setRequestForm(emptyMaterialForm(deptTab));
+    }
     if (mode === "supplier") setSupplierForm({ dept: "All", name: "", contact_person: "", phone: "", email: "", material_category: "", material_name: "", price_per_unit: "", unit: "", notes: "" });
     if (mode === "transfer") setTransferForm({ target_dept: DEPARTMENTS.find((d) => d !== material?.dept) || DEPARTMENTS[0], qty: "", reason: "" });
     if (mode === "use") setUseForm({ qty: "", purpose: "" });
@@ -2011,9 +2053,9 @@ export default function App() {
   }
 
   async function submitItemRequest() {
-    const { name, category, material_type, qty, unit, threshold, expires_at, purpose, price_per_unit, supplier_name, hazard_level, storage_instruction, handling_instruction, disposal_instruction, ppe_required, incompatible_with, compatibility_notes, condition, last_maintenance_at, maintenance_due_at, maintenance_note } = requestForm;
-    if (!name.trim() || !unit.trim() || qty === "" || threshold === "" || !purpose.trim()) {
-      setFormError("Fill in name, quantity, unit, threshold, and request purpose.");
+    const { name, category, material_type, qty, unit, threshold, expires_at, purpose, price_per_unit, supplier_name, hazard_level, storage_instruction, handling_instruction, disposal_instruction, ppe_required, incompatible_with, compatibility_notes, condition, last_maintenance_at, maintenance_due_at, maintenance_note, material_responsible } = requestForm;
+    if (!name.trim() || !unit.trim() || qty === "" || threshold === "" || !purpose.trim() || !material_responsible.trim()) {
+      setFormError("Fill in name, quantity, unit, threshold, request purpose, and MR (Material Responsible).");
       return;
     }
     if (material_type === "non_consumable" && (!condition.trim() || !maintenance_due_at)) {
@@ -2046,6 +2088,7 @@ export default function App() {
       last_maintenance_at: material_type === "non_consumable" ? (last_maintenance_at || null) : null,
       maintenance_due_at: material_type === "non_consumable" ? (maintenance_due_at || null) : null,
       maintenance_note: material_type === "non_consumable" ? (maintenance_note.trim() || null) : null,
+      material_responsible: material_responsible.trim(),
       requested_by: session.user.id,
       requester_name: displayName,
       status: "pending",
@@ -2058,6 +2101,97 @@ export default function App() {
     }
     closeModal();
     setTab("requests");
+  }
+
+  async function submitAdminMaterial() {
+    const { dept, name, category, material_type, qty, unit, threshold, expires_at, purpose, price_per_unit, supplier_name, hazard_level, storage_instruction, handling_instruction, disposal_instruction, ppe_required, incompatible_with, compatibility_notes, condition, last_maintenance_at, maintenance_due_at, maintenance_note, material_responsible } = requestForm;
+
+    if (!isAdmin) {
+      setFormError("Only an approved administrator can add materials directly.");
+      return;
+    }
+    if (!dept || !DEPARTMENTS.includes(dept)) {
+      setFormError("Choose the department that will own this material.");
+      return;
+    }
+    if (!name.trim() || !unit.trim() || qty === "" || threshold === "" || !material_responsible.trim()) {
+      setFormError("Fill in department, name, quantity, unit, threshold, and MR (Material Responsible).");
+      return;
+    }
+    if (Number(qty) < 0 || Number(threshold) < 0) {
+      setFormError("Quantity and low-stock threshold cannot be negative.");
+      return;
+    }
+    if (material_type === "non_consumable" && (!condition.trim() || !maintenance_due_at)) {
+      setFormError("For non-consumable materials, enter the condition and next maintenance due date.");
+      return;
+    }
+
+    const now = new Date().toISOString();
+    setBusy(true);
+    setFormError("");
+
+    const { data: created, error: createError } = await supabase.from("materials").insert({
+      dept,
+      name: name.trim(),
+      category: category.trim() || "Uncategorized",
+      material_type: material_type === "non_consumable" ? "non_consumable" : "consumable",
+      qty: Number(qty),
+      unit: unit.trim(),
+      threshold: Number(threshold),
+      expires_at: expires_at || null,
+      price_per_unit: Number(price_per_unit || 0),
+      supplier_name: supplier_name.trim() || null,
+      hazard_level: hazard_level || "Low",
+      storage_instruction: storage_instruction.trim() || null,
+      handling_instruction: handling_instruction.trim() || null,
+      disposal_instruction: disposal_instruction.trim() || null,
+      ppe_required: ppe_required.trim() || null,
+      incompatible_with: incompatible_with.trim() || null,
+      compatibility_notes: compatibility_notes.trim() || null,
+      condition: material_type === "non_consumable" ? (condition.trim() || "Good") : "Not applicable",
+      last_maintenance_at: material_type === "non_consumable" ? (last_maintenance_at || null) : null,
+      maintenance_due_at: material_type === "non_consumable" ? (maintenance_due_at || null) : null,
+      maintenance_note: material_type === "non_consumable" ? (maintenance_note.trim() || null) : null,
+      material_responsible: material_responsible.trim(),
+      created_by: session.user.id,
+      approved_by: session.user.id,
+      approved_by_name: displayName,
+      approved_at: now,
+      updated: now,
+      created_at: now,
+    });
+
+    if (createError) {
+      setBusy(false);
+      setFormError(createError.message);
+      return;
+    }
+
+    const material = Array.isArray(created) ? created[0] : created;
+    const { error: logError } = await supabase.from("logs").insert({
+      dept,
+      material_id: material?.id || null,
+      material_name: name.trim(),
+      type: "admin_add",
+      qty: Number(qty),
+      detail: `${purpose.trim() || "Added directly by administrator"} · MR: ${material_responsible.trim()}`,
+      user_id: session.user.id,
+      user_name: displayName,
+      timestamp: now,
+    });
+    setBusy(false);
+
+    if (logError) {
+      setFormError(`Material was added, but the activity log could not be saved: ${logError.message}`);
+      return;
+    }
+
+    closeModal();
+    setDeptTab(dept);
+    setTab("departments");
+    setAppMessage(`${name.trim()} was added to ${dept} and assigned to ${material_responsible.trim()} as MR.`);
+    loadData();
   }
 
   async function submitUse() {
@@ -3119,13 +3253,40 @@ export default function App() {
         .lt-optional { text-transform:none; letter-spacing:0; font-weight:500; opacity:.8; }
 
         .lt-icon-btn { background:none; border:none; cursor:pointer; color:var(--ink-soft); display:flex; }
-        .lt-modal-overlay { position:fixed; inset:0; background:rgba(30,42,40,.45); display:flex; align-items:center; justify-content:center; z-index:50; padding:16px; }
-        .lt-modal { width:100%; max-width:430px; max-height:calc(100dvh - 32px); overflow:auto; background:rgba(255,255,255,.98); border-radius:16px; box-shadow:0 32px 90px rgba(30,42,40,.22); animation:lt-modal-in .38s cubic-bezier(.22,1,.36,1) both; }
+        .lt-modal-overlay {
+          position:fixed; inset:0; z-index:50; padding:clamp(10px,2.2vw,24px);
+          display:flex; align-items:center; justify-content:center; overflow:hidden;
+          background:rgba(30,42,40,.52); backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px);
+        }
+        .lt-modal {
+          box-sizing:border-box; width:min(100%,430px); max-height:calc(100dvh - clamp(20px,4.4vw,48px));
+          display:flex; flex-direction:column; overflow:hidden;
+          background:rgba(255,255,255,.985); border:1px solid rgba(91,107,102,.24); border-radius:18px;
+          box-shadow:0 32px 90px rgba(30,42,40,.26); animation:lt-modal-in .38s cubic-bezier(.22,1,.36,1) both;
+        }
+        .lt-modal-wide { width:min(940px,100%); }
+        .lt-modal * { box-sizing:border-box; min-width:0; }
         .lt-maintenance-form { border:1px solid var(--border); border-radius:12px; padding:14px 14px 0; margin:2px 0 16px; background:linear-gradient(180deg, rgba(237,243,251,.72), rgba(255,255,255,.95)); }
         .lt-maintenance-form-title { display:flex; align-items:center; gap:7px; font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:700; margin-bottom:6px; }
         @keyframes lt-modal-in { from { opacity:0; transform:translateY(18px) scale(.97); } to { opacity:1; transform:translateY(0) scale(1); } }
-        .lt-modal-head { display:flex; align-items:center; justify-content:space-between; padding:16px 18px; border-bottom:1px solid var(--border); font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:15px; }
-        .lt-modal-body { padding:18px; }
+        .lt-modal-head {
+          flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:14px;
+          padding:14px 16px 14px 18px; border-bottom:1px solid var(--border);
+          background:rgba(255,255,255,.96); font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:15px;
+        }
+        .lt-modal-title { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .lt-modal-close {
+          flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; gap:7px;
+          min-height:38px; padding:8px 12px; border:1px solid var(--border); border-radius:10px;
+          background:#fff; color:var(--ink); font:700 12px 'Space Grotesk',sans-serif; cursor:pointer;
+          transition:transform .25s cubic-bezier(.22,1,.36,1), box-shadow .25s ease, border-color .25s ease;
+        }
+        .lt-modal-close:hover { transform:translateY(-2px) scale(1.025); border-color:var(--accent); box-shadow:0 8px 20px rgba(30,42,40,.10); }
+        .lt-modal-close:focus-visible { outline:3px solid var(--accent-soft); outline-offset:2px; }
+        .lt-modal-body {
+          flex:1 1 auto; min-height:0; width:100%; padding:18px;
+          overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; scrollbar-gutter:stable;
+        }
         .lt-modal-hint { font-size:12px; color:var(--ink-soft); margin:-8px 0 14px; line-height:1.45; }
         .lt-form-row { display:flex; gap:10px; }
         .lt-form-row > .lt-field { flex:1; min-width:0; }
@@ -3164,19 +3325,24 @@ export default function App() {
         .lt-card-clickable:focus-visible { transform:translateY(-7px) scale(1.015); box-shadow:0 24px 58px rgba(30,42,40,.14); border-color:var(--accent); }
         .lt-card-clickable:focus-visible { box-shadow:0 0 0 3px var(--accent-soft), 0 24px 58px rgba(30,42,40,.14); }
 
-        .lt-material-details { display:grid; gap:16px; }
+        .lt-material-details { display:grid; gap:16px; width:100%; max-width:100%; overflow:hidden; }
         .lt-material-details-hero { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:18px; border:1px solid var(--border); border-radius:14px; background:linear-gradient(135deg,rgba(255,255,255,.98),var(--paper)); }
         .lt-material-details-name { font-family:'Space Grotesk',sans-serif; font-size:clamp(20px,4vw,28px); font-weight:800; line-height:1.15; margin-top:6px; overflow-wrap:anywhere; }
         .lt-material-details-sub { color:var(--ink-soft); font-size:12px; margin-top:5px; }
         .lt-material-details-stock { min-width:110px; padding:13px 15px; border-radius:12px; background:var(--accent); color:#fff; text-align:center; box-shadow:0 12px 28px rgba(30,42,40,.13); }
         .lt-material-details-stock span { display:block; font-family:'JetBrains Mono',monospace; font-size:25px; font-weight:800; }
         .lt-material-details-stock small { display:block; margin-top:3px; opacity:.88; }
-        .lt-material-details-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+        .lt-material-details-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; width:100%; max-width:100%; }
         .lt-material-detail-row { min-width:0; padding:11px 12px; border:1px solid var(--paper-line); border-radius:9px; background:rgba(255,255,255,.88); transition:transform .3s cubic-bezier(.22,1,.36,1), box-shadow .3s ease, border-color .3s ease; }
         .lt-material-detail-row:hover { transform:translateY(-2px) scale(1.008); border-color:var(--border); box-shadow:0 8px 20px rgba(30,42,40,.06); }
         .lt-material-detail-row span { display:block; color:var(--ink-soft); font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; margin-bottom:4px; }
         .lt-material-detail-row strong { display:block; font-size:12.5px; line-height:1.45; overflow-wrap:anywhere; }
-        .lt-material-details-actions { display:flex; gap:8px; flex-wrap:wrap; padding-top:14px; border-top:1px dashed var(--border); }
+        .lt-material-details-actions {
+          position:sticky; bottom:-18px; z-index:3; display:flex; gap:8px; flex-wrap:wrap;
+          margin:0 -18px -18px; padding:14px 18px 18px; border-top:1px solid var(--border);
+          background:linear-gradient(180deg,rgba(255,255,255,.92),#fff 26%); box-shadow:0 -10px 24px rgba(30,42,40,.04);
+        }
+        .lt-details-close-btn { margin-left:auto; }
 
         .lt-table-wrap,
         .lt-chat-wrap,
@@ -3227,15 +3393,21 @@ export default function App() {
           .lt-card-actions, .lt-chat-input-bar { flex-direction:column; }
           .lt-chat-input-bar .lt-btn { width:100%; }
           .lt-bubble { max-width:92%; }
-          .lt-modal-overlay { padding:10px; align-items:flex-end; }
-          .lt-modal { max-height:92dvh; }
+          .lt-modal-overlay { padding:8px; align-items:flex-end; }
+          .lt-modal, .lt-modal-wide { width:100%; max-height:94dvh; border-radius:16px 16px 10px 10px; }
+          .lt-modal-head { padding:12px 12px 12px 14px; }
+          .lt-modal-close span { display:none; }
+          .lt-modal-close { width:40px; min-height:40px; padding:0; }
+          .lt-modal-body { padding:14px; }
           .lt-culture-timeline { grid-template-columns:1fr; }
           .lt-culture-line { width:100%; }
           .lt-culture-actions .lt-btn { flex:1 1 120px; }
           .lt-material-details-hero { align-items:flex-start; flex-direction:column; }
           .lt-material-details-stock { width:100%; }
           .lt-material-details-grid { grid-template-columns:1fr; }
+          .lt-material-details-actions { bottom:-14px; margin:0 -14px -14px; padding:12px 14px 14px; }
           .lt-material-details-actions .lt-btn { flex:1 1 140px; }
+          .lt-details-close-btn { margin-left:0; }
         }
         @media (prefers-reduced-motion: reduce) {
           .lt-card-clickable, .lt-material-detail-row, .lt-add-card, .lt-subtab, .lt-date-icon { transition:none !important; }
@@ -3654,7 +3826,10 @@ export default function App() {
                     <div className="lt-h1">Inventory management</div>
                     <div className="lt-h1-sub">View full records, log usage, borrow, correct, transfer, maintain, or remove approved materials</div>
                   </div>
-                  <button className="lt-btn lt-btn-ghost" onClick={exportMaterialsCsv}><Download size={14} /> Export</button>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button className="lt-btn lt-btn-accent" onClick={() => openModal("adminAddMaterial")}><Plus size={14} /> Add material</button>
+                    <button className="lt-btn lt-btn-ghost" onClick={exportMaterialsCsv}><Download size={14} /> Export</button>
+                  </div>
                 </div>
                 <div className="lt-subtabs">
                   {DEPARTMENTS.map((department) => (
@@ -3682,6 +3857,10 @@ export default function App() {
                       onDelete={(m) => openModal("deleteMaterial", m)}
                     />
                   ))}
+                  <button className="lt-add-card" onClick={() => openModal("adminAddMaterial")}>
+                    <Plus size={20} /> Add approved material
+                    <span style={{ fontSize: 11, color: "var(--ink-soft)", fontWeight: 500 }}>Assign department and MR immediately</span>
+                  </button>
                 </div>
                 <PaginationControls page={materialsPage} pageSize={MATERIALS_PAGE_SIZE} total={materialsTotal} onPage={setMaterialsPage} label="materials" />
                 <BorrowList borrows={borrowRecords} onReturn={(borrow) => openModal("return", null, null, null, borrow)} />
@@ -4046,7 +4225,7 @@ export default function App() {
       )}
 
       {modalMode === "materialDetails" && activeMaterial && (
-        <Modal title={`Material details — ${activeMaterial.name}`} onClose={closeModal}>
+        <Modal title={`Material details — ${activeMaterial.name}`} onClose={closeModal} wide>
           <MaterialDetails material={activeMaterial} />
           <div className="lt-material-details-actions">
             <button className="lt-btn lt-btn-accent" onClick={() => openModal("use", activeMaterial)}>
@@ -4068,6 +4247,9 @@ export default function App() {
                 <CalendarClock size={14} /> Maintenance
               </button>
             )}
+            <button className="lt-btn lt-btn-ghost lt-details-close-btn" type="button" onClick={closeModal}>
+              <X size={14} /> Exit details
+            </button>
           </div>
         </Modal>
       )}
@@ -4213,12 +4395,35 @@ export default function App() {
         </Modal>
       )}
 
-      {modalMode === "request" && (
-        <Modal title="Request a new material" onClose={closeModal}>
-          <div className="lt-modal-hint">This will go to the admin approval queue first. It will not appear in stock until approved.</div>
+      {(modalMode === "request" || modalMode === "adminAddMaterial") && (
+        <Modal title={modalMode === "adminAddMaterial" ? "Add approved material" : "Request a new material"} onClose={closeModal}>
+          <div className="lt-modal-hint">
+            {modalMode === "adminAddMaterial"
+              ? "This administrator action adds the material directly to the selected department inventory. An MR assignment is required."
+              : "This will go to the admin approval queue first. Assign the proposed MR now; the admin can confirm or change it during approval."}
+          </div>
+          {modalMode === "adminAddMaterial" && (
+            <div className="lt-field">
+              <label className="lt-label">Owning department</label>
+              <select className="lt-select" value={requestForm.dept} onChange={(e) => setRequestForm({ ...requestForm, dept: e.target.value })}>
+                {DEPARTMENTS.map((department) => <option key={department} value={department}>{department}</option>)}
+              </select>
+            </div>
+          )}
           <div className="lt-field">
             <label className="lt-label">Material name</label>
             <input className="lt-input" maxLength={255} value={requestForm.name} onChange={(e) => setRequestForm({ ...requestForm, name: e.target.value })} placeholder="e.g. Acetone" />
+          </div>
+          <div className="lt-field">
+            <label className="lt-label">MR — Material Responsible</label>
+            <input
+              className="lt-input"
+              maxLength={255}
+              value={requestForm.material_responsible}
+              onChange={(e) => setRequestForm({ ...requestForm, material_responsible: e.target.value })}
+              placeholder="Full name of the person accountable for this material"
+            />
+            <div className="lt-field-help">Required for both user requests and direct admin additions. The approving admin may still confirm or change this assignment.</div>
           </div>
           <div className="lt-field">
             <label className="lt-label">Category</label>
@@ -4340,11 +4545,25 @@ export default function App() {
             </div>
           )}
           <div className="lt-field">
-            <label className="lt-label">Purpose / reason for request</label>
-            <textarea className="lt-textarea" maxLength={1000} value={requestForm.purpose} onChange={(e) => setRequestForm({ ...requestForm, purpose: e.target.value })} placeholder="Why is this material needed?" />
+            <label className="lt-label">{modalMode === "adminAddMaterial" ? "Receiving / audit note" : "Purpose / reason for request"}</label>
+            <textarea
+              className="lt-textarea"
+              maxLength={1000}
+              value={requestForm.purpose}
+              onChange={(e) => setRequestForm({ ...requestForm, purpose: e.target.value })}
+              placeholder={modalMode === "adminAddMaterial" ? "Optional receiving note, source, or reason for direct addition" : "Why is this material needed?"}
+            />
           </div>
           {formError && <div className="lt-error">{formError}</div>}
-          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitItemRequest}>{busy ? "Sending…" : "Submit for approval"}</button>
+          <button
+            className="lt-btn lt-btn-primary"
+            disabled={busy}
+            onClick={modalMode === "adminAddMaterial" ? submitAdminMaterial : submitItemRequest}
+          >
+            {busy
+              ? (modalMode === "adminAddMaterial" ? "Adding…" : "Sending…")
+              : (modalMode === "adminAddMaterial" ? "Add directly to inventory" : "Submit for approval")}
+          </button>
         </Modal>
       )}
 
