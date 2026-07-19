@@ -12,6 +12,8 @@ import {
   Pencil,
   Send,
   X,
+  Menu,
+  ChevronDown,
   Beaker,
   UserCheck,
   Trash2,
@@ -1147,6 +1149,7 @@ export default function App() {
   const [dashboardSummary, setDashboardSummary] = useState(null);
 
   const [tab, setTab] = useState("inventory");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [deptTab, setDeptTab] = useState(DEPARTMENTS[0]);
   const [logsFilter, setLogsFilter] = useState("All");
   const [logsPage, setLogsPage] = useState(0);
@@ -1975,9 +1978,12 @@ export default function App() {
     { key: "logs", label: "Logs", icon: ClipboardList },
     { key: "support", label: "Support", icon: MessageCircle, badge: totalUnreadChats },
   ];
+  const navigationItems = isAdmin ? adminTabs : userTabs;
+  const activeNavigationItem = navigationItems.find((item) => item.key === tab) || navigationItems[0];
 
   function switchTab(nextTab) {
     setTab(nextTab);
+    setMobileNavOpen(false);
     setFormError("");
     setAppMessage("");
     setLogsPage(0);
@@ -1989,6 +1995,15 @@ export default function App() {
     if (nextTab !== "suppliers") setSupplierSearch("");
     if (nextTab !== "cultureLogs") setCultureSearch("");
   }
+
+  useEffect(() => {
+    if (!mobileNavOpen) return undefined;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setMobileNavOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [mobileNavOpen]);
 
   useEffect(() => {
     setMaterialsPage(0);
@@ -3278,6 +3293,7 @@ export default function App() {
         .lt-btn:active { transform:translateY(0) scale(.98); box-shadow:none; }
 
         .lt-shell { display:flex; min-height:100dvh; width:100%; }
+        .lt-mobile-nav-toggle, .lt-mobile-nav-scrim { display:none; }
         .lt-sidebar { width:220px; flex-shrink:0; border-right:1px solid var(--border); padding:20px 0 0; display:flex; flex-direction:column; position:sticky; top:0; height:100dvh; overflow:hidden; z-index:10; background:rgba(246,247,243,.96); backdrop-filter:blur(8px); }
         .lt-sidebar-brand { display:flex; align-items:center; gap:8px; padding:0 20px 20px; flex:0 0 auto; }
         .lt-sidebar-nav { flex:1 1 auto; min-height:0; overflow-y:auto; overflow-x:hidden; padding-bottom:10px; overscroll-behavior:contain; scrollbar-width:thin; }
@@ -3590,18 +3606,60 @@ export default function App() {
 
         @media (max-width: 860px) {
           .lt-shell { flex-direction:column; }
-          .lt-sidebar { width:100%; height:auto; position:sticky; top:0; z-index:20; flex-direction:row; align-items:center; padding:10px 12px; overflow:hidden; border-right:none; border-bottom:1px solid var(--border); }
+          .lt-sidebar {
+            width:100%; height:auto; max-height:none; position:sticky; top:0; z-index:30;
+            display:flex; flex-direction:column; align-items:stretch; padding:8px 12px;
+            overflow:hidden; border-right:none; border-bottom:1px solid var(--border);
+            box-shadow:0 8px 24px rgba(30,42,40,.06);
+          }
+          .lt-sidebar.mobile-open { max-height:min(78dvh, 640px); box-shadow:0 18px 46px rgba(30,42,40,.16); }
           .lt-sidebar-brand { display:none; }
-          .lt-sidebar-nav { display:flex; flex-direction:row; flex:1 1 auto; min-width:0; overflow-x:auto; overflow-y:hidden; padding:0; scrollbar-width:thin; }
-          .lt-sidebar-tab { flex:0 0 auto; padding:9px 12px; white-space:nowrap; width:auto; }
-          .lt-sidebar-tab.active::before { left:0; right:0; bottom:0; top:auto; height:3px; width:auto; }
+          .lt-mobile-nav-toggle {
+            width:100%; min-height:48px; display:flex; align-items:center; justify-content:space-between; gap:12px;
+            border:1px solid var(--border); border-radius:12px; padding:8px 11px; background:rgba(255,255,255,.96);
+            color:var(--ink); cursor:pointer; font:inherit; text-align:left;
+            box-shadow:0 5px 16px rgba(30,42,40,.06);
+          }
+          .lt-mobile-nav-toggle-main { min-width:0; display:flex; align-items:center; gap:10px; }
+          .lt-mobile-nav-toggle-copy { min-width:0; display:flex; flex-direction:column; line-height:1.15; }
+          .lt-mobile-nav-toggle-copy strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
+          .lt-mobile-nav-toggle-copy span { color:var(--ink-soft); font-size:10px; margin-top:3px; }
+          .lt-mobile-nav-chevron { flex:0 0 auto; transition:transform .24s cubic-bezier(.2,.8,.2,1); }
+          .lt-sidebar.mobile-open .lt-mobile-nav-chevron { transform:rotate(180deg); }
+          .lt-sidebar-nav { display:none; min-width:0; padding:8px 0 4px; }
+          .lt-sidebar.mobile-open .lt-sidebar-nav {
+            display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px;
+            max-height:calc(min(78dvh, 640px) - 126px); overflow-y:auto; overflow-x:hidden;
+            overscroll-behavior:contain; scrollbar-width:thin;
+          }
+          .lt-sidebar-tab {
+            min-width:0; min-height:44px; width:100%; padding:9px 10px; border:1px solid transparent;
+            border-radius:10px; white-space:normal; line-height:1.2; background:rgba(255,255,255,.62);
+          }
+          .lt-sidebar-tab:hover { transform:translateY(-1px); border-color:var(--border); }
+          .lt-sidebar-tab.active { border-color:color-mix(in srgb, var(--accent) 35%, var(--border)); box-shadow:0 6px 16px rgba(30,42,40,.08); }
+          .lt-sidebar-tab.active::before { display:none; }
           .lt-sidebar-foot { display:none; }
+          .lt-sidebar.mobile-open .lt-sidebar-foot {
+            display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:6px;
+            padding:10px 2px 2px; border-top:1px solid var(--border); background:transparent; box-shadow:none;
+          }
+          .lt-sidebar.mobile-open .lt-user-chip { min-width:0; padding:0; }
+          .lt-sidebar.mobile-open .lt-user-chip strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+          .lt-sidebar.mobile-open .lt-logout { flex:0 0 auto; margin:0; }
+          .lt-mobile-nav-scrim {
+            display:block; position:fixed; inset:0; z-index:19; border:0; padding:0;
+            background:rgba(30,42,40,.24); backdrop-filter:blur(1px); cursor:pointer;
+          }
           .lt-main { padding:18px; }
           .lt-conv-layout { flex-direction:column; }
           .lt-conv-list { width:100%; display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
           .lt-chat-wrap { height:calc(100dvh - 220px); min-height:360px; }
         }
         @media (max-width: 520px) {
+          .lt-sidebar.mobile-open .lt-sidebar-nav { gap:5px; }
+          .lt-sidebar-tab { padding:9px 8px; font-size:12px; }
+          .lt-sidebar-tab .lt-badge { margin-left:auto; }
           .lt-login-card { padding:22px; }
           .lt-main { padding:14px; }
           .lt-form-row { flex-direction:column; gap:0; }
@@ -3706,13 +3764,29 @@ export default function App() {
 
       {isSupabaseConfigured && !loading && session && profile && accountApproved && (
         <div className="lt-shell">
-          <div className="lt-sidebar">
+          <div className={`lt-sidebar ${mobileNavOpen ? "mobile-open" : ""}`}>
+            <button
+              type="button"
+              className="lt-mobile-nav-toggle"
+              aria-expanded={mobileNavOpen}
+              aria-controls="labtrack-section-navigation"
+              onClick={() => setMobileNavOpen((open) => !open)}
+            >
+              <span className="lt-mobile-nav-toggle-main">
+                <Menu size={18} />
+                <span className="lt-mobile-nav-toggle-copy">
+                  <strong>{activeNavigationItem?.label || "Sections"}</strong>
+                  <span>{mobileNavOpen ? "Tap to collapse navigation" : "Tap to open all sections"}</span>
+                </span>
+              </span>
+              <ChevronDown className="lt-mobile-nav-chevron" size={18} />
+            </button>
             <div className="lt-sidebar-brand">
               <FlaskConical size={16} color={isAdmin ? "var(--admin-accent)" : "var(--user-accent)"} />
               <span className="lt-brand-name" style={{ fontSize: 15 }}>LabTrack</span>
             </div>
-            <nav className="lt-sidebar-nav" aria-label="LabTrack sections">
-              {(isAdmin ? adminTabs : userTabs).map((item) => (
+            <nav id="labtrack-section-navigation" className="lt-sidebar-nav" aria-label="LabTrack sections">
+              {navigationItems.map((item) => (
                 <button key={item.key} className={`lt-sidebar-tab ${tab === item.key ? "active" : ""}`} onClick={() => switchTab(item.key)}>
                   <item.icon size={15} /> {item.label}
                   {item.badge > 0 && <span className="lt-badge">{item.badge}</span>}
@@ -3727,6 +3801,7 @@ export default function App() {
               <button className="lt-logout" onClick={handleLogout}><LogOut size={13} /> Log out</button>
             </div>
           </div>
+          {mobileNavOpen && <button type="button" className="lt-mobile-nav-scrim" aria-label="Close navigation" onClick={() => setMobileNavOpen(false)} />}
 
           <div className="lt-main">
             {formError && <div className="lt-error" style={{ marginBottom: 12 }}>{formError}</div>}
