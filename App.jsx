@@ -3319,6 +3319,9 @@ export default function App() {
         .lt-mobile-nav-toggle, .lt-mobile-nav-scrim { display:none; }
         .lt-sidebar { width:220px; flex-shrink:0; border-right:1px solid var(--border); padding:20px 0 0; display:flex; flex-direction:column; position:sticky; top:0; height:100dvh; overflow:hidden; z-index:10; background:rgba(246,247,243,.96); backdrop-filter:blur(8px); }
         .lt-sidebar-brand { display:flex; align-items:center; gap:8px; padding:0 20px 20px; flex:0 0 auto; }
+        .lt-sidebar-brand-copy { display:flex; flex-direction:column; min-width:0; line-height:1.15; }
+        .lt-sidebar-powered { margin-top:3px; font-size:9px; color:var(--ink-soft); letter-spacing:.025em; white-space:nowrap; }
+        .lt-sidebar-powered strong { color:var(--ink); font-weight:700; }
         .lt-sidebar-nav { flex:1 1 auto; min-height:0; overflow-y:auto; overflow-x:hidden; padding-bottom:10px; overscroll-behavior:contain; scrollbar-width:thin; }
         .lt-sidebar-tab { display:flex; align-items:center; gap:10px; padding:10px 20px; font-size:13px; font-weight:700; color:var(--ink-soft); background:none; border:none; cursor:pointer; text-align:left; position:relative; width:100%; transition:background .28s ease, color .28s ease, transform .28s cubic-bezier(.22,1,.36,1); }
         .lt-sidebar-tab:hover { transform:translateX(3px); color:var(--ink); }
@@ -3973,7 +3976,12 @@ export default function App() {
             </button>
             <div className="lt-sidebar-brand">
               <FlaskConical size={16} color={isAdmin ? "var(--admin-accent)" : "var(--user-accent)"} />
-              <span className="lt-brand-name" style={{ fontSize: 15 }}>LabTrack</span>
+              <div className="lt-sidebar-brand-copy">
+                <span className="lt-brand-name" style={{ fontSize: 15 }}>LabTrack</span>
+                <span className="lt-sidebar-powered">
+                  powered by <strong>Luntian</strong>
+                </span>
+              </div>
             </div>
             <nav id="labtrack-section-navigation" className="lt-sidebar-nav" aria-label="LabTrack sections">
               {navigationItems.map((item) => (
