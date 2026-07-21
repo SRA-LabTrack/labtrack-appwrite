@@ -31,7 +31,7 @@ import {
   ArrowRightLeft,
   FileSpreadsheet,
 } from "lucide-react";
-import { isSupabaseConfigured, supabase } from "./supabaseClient";
+import { isSupabaseConfigured, supabase, offlineSync } from "./offlineSupabaseClient";
 
 const DEPARTMENTS = [
   "BMO Laboratory",
@@ -1123,6 +1123,9 @@ function AccountGate({ profile, onLogout }) {
 }
 
 export default function App() {
+  const [offlineState, setOfflineState] = useState(() => offlineSync.getSnapshot());
+
+  useEffect(() => offlineSync.subscribe(setOfflineState), []);
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [authMode, setAuthMode] = useState("login");
@@ -3267,6 +3270,35 @@ export default function App() {
 
   return (
     <div className="lt-root" style={{ "--accent": accent, "--accent-soft": accentSoft }}>
+      <div
+        className={`lt-sync-status ${
+          !offlineState.online
+            ? "offline"
+            : offlineState.syncing
+              ? "syncing"
+              : offlineState.pending
+                ? "pending"
+                : ""
+        }`}
+        role="status"
+        aria-live="polite"
+      >
+        <span className="lt-sync-dot" />
+        <span>
+          {!offlineState.online
+            ? `${offlineState.pending || 0} saved change${offlineState.pending === 1 ? "" : "s"} waiting for internet`
+            : offlineState.syncing
+              ? "Synchronizing saved changes…"
+              : offlineState.pending
+                ? `${offlineState.pending} change${offlineState.pending === 1 ? "" : "s"} waiting to sync`
+                : "Online · data synchronized"}
+        </span>
+        {offlineState.online && offlineState.pending > 0 && (
+          <button type="button" onClick={() => offlineSync.syncNow()}>
+            Sync now
+          </button>
+        )}
+      </div>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap');
 
@@ -3281,6 +3313,24 @@ export default function App() {
           min-height:100dvh; width:100%; box-sizing:border-box;
         }
         .lt-root * { box-sizing:border-box; }
+        .lt-sync-status {
+          position:fixed; top:max(10px, env(safe-area-inset-top)); right:12px; z-index:9999;
+          display:flex; align-items:center; gap:7px; max-width:min(360px, calc(100vw - 24px));
+          padding:8px 11px; border:1px solid rgba(30,42,40,.14); border-radius:999px;
+          background:rgba(255,255,255,.94); color:var(--ink); box-shadow:0 10px 30px rgba(30,42,40,.12);
+          backdrop-filter:blur(12px); font-size:11px; font-weight:700;
+        }
+        .lt-sync-status.offline { background:rgba(255,246,225,.96); color:#7A4A0A; }
+        .lt-sync-status.syncing { background:rgba(232,243,255,.96); color:#245B86; }
+        .lt-sync-status.pending { background:rgba(238,247,237,.96); color:#356B3E; }
+        .lt-sync-dot { width:8px; height:8px; border-radius:50%; background:#3A8347; flex:0 0 auto; }
+        .lt-sync-status.offline .lt-sync-dot { background:#C4762A; }
+        .lt-sync-status.syncing .lt-sync-dot { background:#3B75A6; animation:lt-sync-pulse 1s ease-in-out infinite; }
+        .lt-sync-status button {
+          border:0; background:transparent; color:inherit; font:inherit; padding:0; cursor:pointer;
+          text-decoration:underline; text-underline-offset:2px;
+        }
+        @keyframes lt-sync-pulse { 50% { opacity:.35; transform:scale(.78); } }
         .lt-mono { font-family:'JetBrains Mono',monospace; }
         .lt-note { font-size:13px; line-height:1.55; color:var(--ink-soft); background:var(--paper); border:1px solid var(--border); padding:14px; border-radius:4px; }
         .lt-note pre { white-space:pre-wrap; background:#fff; border:1px solid var(--border); padding:10px; border-radius:3px; color:var(--ink); }
