@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+<title id="title">LabTrack logo mark</title>
+<desc id="desc">A laboratory flask with a green leaf</desc>
+<rect width="512" height="512" rx="118" fill="#1F6F78"/>
+<path d="M203 106h106M225 106v92l-92 160c-15 27 4 60 35 60h176c31 0 50-33 35-60l-92-160v-92" fill="none" stroke="white" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M164 340c36-47 77-53 118-37 31 13 55 13 83-1l31 55c12 21-3 47-28 47H167c-25 0-40-27-27-49z" fill="#66B36E"/>
+<path d="M278 270c17-43 54-67 100-65-4 46-31 78-75 91-13 4-27-2-32-14-3-5-1-9 7-12z" fill="white"/>
+<path d="M290 283c24-24 49-42 78-58" fill="none" stroke="#1F6F78" stroke-width="10" stroke-linecap="round"/>
+<circle cx="210" cy="344" r="11" fill="white" opacity=".85"/>
+<circle cx="250" cy="365" r="7" fill="white" opacity=".75"/>
+</svg>
