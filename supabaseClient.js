@@ -1,4 +1,25 @@
 import { Account, Client, Databases, ID, Query } from "appwrite";
+import {
+  cacheRows,
+  deleteMeta,
+  deleteQueuedMutation,
+  enqueueMutation,
+  getCachedRow,
+  getMeta,
+  getRowsWithPending,
+  getSyncStatus,
+  isNetworkError,
+  isOnline,
+  listQueuedMutations,
+  refreshPendingCount,
+  removeCachedRows,
+  requestPersistentStorage,
+  setMeta,
+  setOfflineScope,
+  setSyncStatus,
+  subscribeSyncStatus,
+  updateQueuedMutation,
+} from "./offlineStore";
 
 const appwriteEndpoint = import.meta.env.VITE_APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1";
 const appwriteProjectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
@@ -21,6 +42,12 @@ const COLLECTIONS = {
   culture_logs: "culture_logs",
   maintenance_requests: "maintenance_requests",
 };
+
+const VIPM_DEPARTMENT = "Variety Improvement and Pest Management (VIPM)";
+const OFFLINE_SNAPSHOT_VERSION = "economy-v1";
+const OFFLINE_REFRESH_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
+const OFFLINE_PAGE_SIZE = 100;
+let offlinePreparationPromise = null;
 
 const client = isAppwriteConfigured
   ? new Client().setEndpoint(appwriteEndpoint).setProject(appwriteProjectId)
@@ -59,7 +86,7 @@ function collectionFor(table) {
 function cleanPayload(payload) {
   const out = {};
   Object.entries(payload || {}).forEach(([key, value]) => {
-    if (key === "id" || key.startsWith("$") || value === undefined) return;
+    if (key === "id" || key.startsWith("$") || key.startsWith("_") || value === undefined) return;
     out[key] = value;
   });
   return out;
@@ -92,10 +119,33 @@ function mapUser(user) {
 }
 
 async function getCurrentUser() {
+  const locallySignedOut = await getMeta("locallySignedOut");
+  if (locallySignedOut) {
+    setOfflineScope("guest");
+    return null;
+  }
+
+  if (!isOnline()) {
+    const user = await getMeta("currentUser");
+    setOfflineScope(user?.id || "guest");
+    return user;
+  }
+
   try {
-    const user = await account.get();
-    return mapUser(user);
-  } catch {
+    const user = mapUser(await account.get());
+    setOfflineScope(user?.id || "guest");
+    await setMeta("currentUser", user);
+    await setMeta("locallySignedOut", false);
+    return user;
+  } catch (error) {
+    if (isNetworkError(error)) {
+      const user = await getMeta("currentUser");
+      setOfflineScope(user?.id || "guest");
+      return user;
+    }
+    setOfflineScope("guest");
+    await deleteMeta("currentUser");
+    await deleteMeta("currentProfile");
     return null;
   }
 }
@@ -103,10 +153,24 @@ async function getCurrentUser() {
 async function getCurrentProfile() {
   const user = await getCurrentUser();
   if (!user) return { user: null, profile: null };
+
+  if (!isOnline()) {
+    const profile = await getMeta("currentProfile");
+    return { user, profile };
+  }
+
   try {
-    const profile = await databases.getDocument(appwriteDatabaseId, COLLECTIONS.profiles, user.id);
-    return { user, profile: mapDocument(profile) };
-  } catch {
+    const profile = mapDocument(
+      await databases.getDocument(appwriteDatabaseId, COLLECTIONS.profiles, user.id)
+    );
+    await cacheRows("profiles", [profile]);
+    await setMeta("currentProfile", profile);
+    return { user, profile };
+  } catch (error) {
+    if (isNetworkError(error)) {
+      const profile = await getMeta("currentProfile");
+      return { user, profile };
+    }
     return { user, profile: null };
   }
 }
@@ -169,12 +233,42 @@ function isOverdueBorrow(row) {
   return row?.status === "active" && days !== null && days < 0;
 }
 
-async function listCollection(table, queries = []) {
-  const response = await databases.listDocuments(appwriteDatabaseId, collectionFor(table), queries);
-  return (response.documents || []).map(mapDocument);
+function localDocument(table, payload, documentId, existing = null) {
+  const now = isoNow();
+  return mapDocument({
+    ...(existing || {}),
+    ...cleanPayload(payload),
+    $id: documentId,
+    $createdAt: existing?.$createdAt || payload?.created_at || now,
+    $updatedAt: now,
+    $databaseId: appwriteDatabaseId,
+    $collectionId: collectionFor(table),
+    _offlinePending: true,
+  });
 }
 
-async function listAllCollection(table, { pageSize = 100, maxRows = 5000 } = {}) {
+async function listCollectionOnline(table, queries = []) {
+  const response = await databases.listDocuments(
+    appwriteDatabaseId,
+    collectionFor(table),
+    queries
+  );
+  const rows = (response.documents || []).map(mapDocument);
+  await cacheRows(table, rows);
+  return rows;
+}
+
+async function listCollection(table, queries = []) {
+  if (!isOnline()) return getRowsWithPending(table);
+  try {
+    return await listCollectionOnline(table, queries);
+  } catch (error) {
+    if (isNetworkError(error)) return getRowsWithPending(table);
+    throw error;
+  }
+}
+
+async function listAllCollectionOnline(table, { pageSize = 100, maxRows = 5000 } = {}) {
   const rows = [];
   let offset = 0;
 
@@ -192,28 +286,144 @@ async function listAllCollection(table, { pageSize = 100, maxRows = 5000 } = {})
     offset += documents.length;
   }
 
+  await cacheRows(table, rows, { replace: true });
   return rows;
 }
 
+async function listAllCollection(table, options = {}) {
+  if (!isOnline()) return getRowsWithPending(table);
+  try {
+    return await listAllCollectionOnline(table, options);
+  } catch (error) {
+    if (isNetworkError(error)) return getRowsWithPending(table);
+    throw error;
+  }
+}
+
+async function getByIdOnline(table, id) {
+  const document = mapDocument(
+    await databases.getDocument(appwriteDatabaseId, collectionFor(table), id)
+  );
+  await cacheRows(table, [document]);
+  if (table === "profiles") {
+    const currentUser = await getMeta("currentUser");
+    if (currentUser?.id === document.id) await setMeta("currentProfile", document);
+  }
+  return document;
+}
+
 async function getById(table, id) {
-  const document = await databases.getDocument(appwriteDatabaseId, collectionFor(table), id);
-  return mapDocument(document);
+  if (!isOnline()) {
+    const cached = await getCachedRow(table, id);
+    if (!cached) throw new Error(`Offline copy of ${table}/${id} is not available yet.`);
+    return cached;
+  }
+
+  try {
+    return await getByIdOnline(table, id);
+  } catch (error) {
+    if (isNetworkError(error)) {
+      const cached = await getCachedRow(table, id);
+      if (cached) return cached;
+    }
+    throw error;
+  }
+}
+
+async function createRowOnline(table, payload, documentId) {
+  const document = mapDocument(
+    await databases.createDocument(
+      appwriteDatabaseId,
+      collectionFor(table),
+      documentId,
+      cleanPayload(payload)
+    )
+  );
+  await cacheRows(table, [document]);
+  return document;
+}
+
+async function queueCreateRow(table, payload, documentId) {
+  const local = localDocument(table, payload, documentId);
+  await enqueueMutation({
+    kind: "insert",
+    table,
+    rows: [local],
+  });
+  return local;
 }
 
 async function createRow(table, payload, documentId = ID.unique()) {
-  const data = cleanPayload(payload);
-  const document = await databases.createDocument(appwriteDatabaseId, collectionFor(table), documentId, data);
-  return mapDocument(document);
+  if (!isOnline()) return queueCreateRow(table, payload, documentId);
+
+  try {
+    return await createRowOnline(table, payload, documentId);
+  } catch (error) {
+    if (isNetworkError(error)) return queueCreateRow(table, payload, documentId);
+    throw error;
+  }
+}
+
+async function updateRowOnline(table, id, payload) {
+  const document = mapDocument(
+    await databases.updateDocument(
+      appwriteDatabaseId,
+      collectionFor(table),
+      id,
+      cleanPayload(payload)
+    )
+  );
+  await cacheRows(table, [document]);
+  if (table === "profiles") {
+    const currentUser = await getMeta("currentUser");
+    if (currentUser?.id === document.id) await setMeta("currentProfile", document);
+  }
+  return document;
+}
+
+async function queueUpdateRow(table, id, payload) {
+  const existing = await getCachedRow(table, id);
+  const local = localDocument(table, payload, id, existing || { id, $id: id });
+  await enqueueMutation({
+    kind: "update",
+    table,
+    ids: [id],
+    payload: cleanPayload(payload),
+  });
+  return local;
 }
 
 async function updateRow(table, id, payload) {
-  const document = await databases.updateDocument(appwriteDatabaseId, collectionFor(table), id, cleanPayload(payload));
-  return mapDocument(document);
+  if (!isOnline()) return queueUpdateRow(table, id, payload);
+
+  try {
+    return await updateRowOnline(table, id, payload);
+  } catch (error) {
+    if (isNetworkError(error)) return queueUpdateRow(table, id, payload);
+    throw error;
+  }
+}
+
+async function deleteRowOnline(table, id) {
+  await databases.deleteDocument(appwriteDatabaseId, collectionFor(table), id);
+  await removeCachedRows(table, [id]);
+  return null;
+}
+
+async function queueDeleteRow(table, id) {
+  await enqueueMutation({ kind: "delete", table, ids: [id] });
+  return null;
 }
 
 async function deleteRow(table, id) {
-  await databases.deleteDocument(appwriteDatabaseId, collectionFor(table), id);
-  return null;
+  if (!isOnline()) return queueDeleteRow(table, id);
+
+  try {
+    return await deleteRowOnline(table, id);
+  } catch (error) {
+    if (isNetworkError(error)) return queueDeleteRow(table, id);
+    throw error;
+  }
 }
 
 class AppwriteQueryBuilder {
@@ -373,15 +583,41 @@ class AppwriteQueryBuilder {
     return queries;
   }
 
+  applyClientPage(rows) {
+    if (this.rangeStart !== null && this.rangeEnd !== null) {
+      return rows.slice(this.rangeStart, this.rangeEnd + 1);
+    }
+    if (this.limitValue) return rows.slice(0, Math.max(1, this.limitValue));
+    return rows.slice(0, 100);
+  }
+
+  async executeCachedSelect() {
+    let data = this.applyClientFilters(await getRowsWithPending(this.table));
+    const count = data.length;
+    data = this.applyClientPage(data);
+
+    if (this.wantSingle || this.wantMaybeSingle) {
+      return ok(data[0] || null, { count, offline: true });
+    }
+
+    return ok(this.headOnly ? null : data, {
+      count,
+      offline: true,
+    });
+  }
+
   async executeSelect() {
+    if (!isOnline()) return this.executeCachedSelect();
+
     try {
       const idFilter = this.getIdFilter();
       if ((this.wantSingle || this.wantMaybeSingle) && idFilter) {
         try {
-          const doc = await getById(this.table, idFilter.value);
+          const doc = await getByIdOnline(this.table, idFilter.value);
           const filtered = this.applyClientFilters([doc]);
           return ok(filtered[0] || null);
         } catch (error) {
+          if (isNetworkError(error)) return this.executeCachedSelect();
           if (this.wantMaybeSingle) return ok(null);
           throw error;
         }
@@ -394,6 +630,7 @@ class AppwriteQueryBuilder {
       );
 
       let data = (response.documents || []).map(mapDocument);
+      await cacheRows(this.table, data);
       data = this.applyClientFilters(data);
 
       if (this.wantSingle || this.wantMaybeSingle) {
@@ -401,9 +638,12 @@ class AppwriteQueryBuilder {
       }
 
       return ok(this.headOnly ? null : data, {
-        count: this.orFilters.length || this.searchFilters.length ? data.length : response.total ?? data.length,
+        count: this.orFilters.length || this.searchFilters.length
+          ? data.length
+          : response.total ?? data.length,
       });
     } catch (error) {
+      if (isNetworkError(error)) return this.executeCachedSelect();
       return fail(error);
     }
   }
@@ -424,7 +664,7 @@ class AppwriteQueryBuilder {
       for (const id of ids) {
         updated.push(await updateRow(this.table, id, this.payload));
       }
-      return ok(updated);
+      return ok(updated, { offline: !isOnline(), queued: !isOnline() });
     } catch (error) {
       return fail(error);
     }
@@ -436,7 +676,7 @@ class AppwriteQueryBuilder {
       for (const id of ids) {
         await deleteRow(this.table, id);
       }
-      return ok(null);
+      return ok(null, { offline: !isOnline(), queued: !isOnline() });
     } catch (error) {
       return fail(error);
     }
@@ -458,7 +698,10 @@ class AppwriteQueryBuilder {
         if (this.table === "restock_requests" && !row.updated_at) defaults.updated_at = isoNow();
         created.push(await createRow(this.table, { ...defaults, ...row }, documentId));
       }
-      return ok(Array.isArray(this.payload) ? created : created[0]);
+      return ok(Array.isArray(this.payload) ? created : created[0], {
+        offline: !isOnline(),
+        queued: !isOnline(),
+      });
     } catch (error) {
       return fail(error);
     }
@@ -486,7 +729,7 @@ class AppwriteChannelBuilder {
   }
 
   subscribe() {
-    if (!client?.subscribe) return this;
+    if (!client?.subscribe || !isOnline()) return this;
     const unsubscribers = this.handlers.map(({ eventName, filter, callback }) => {
       const collection = filter?.table ? collectionFor(filter.table) : "*";
       const channel = `databases.${appwriteDatabaseId}.collections.${collection}.documents`;
@@ -1318,6 +1561,392 @@ async function runRpc(name, args = {}) {
   }
 }
 
+
+function offlineSnapshotKey(userId) {
+  return `offlineSnapshot:${OFFLINE_SNAPSHOT_VERSION}:${userId}`;
+}
+
+function offlineProfileSignature(profile) {
+  return [
+    profile?.id || "",
+    profile?.role || "user",
+    profile?.dept || "",
+    profile?.status || "",
+  ].join("|");
+}
+
+function offlinePrefetchPlan(userId, profile) {
+  const isAdmin = profile?.role === "admin" && profile?.status === "approved";
+  const dept = profile?.dept || "";
+
+  if (isAdmin) {
+    return [
+      { table: "profiles", label: "Accounts", maxRows: 150, order: ["created_at", false] },
+      { table: "materials", label: "Inventory", maxRows: 1200, order: ["name", true] },
+      { table: "item_requests", label: "Material requests", maxRows: 250, order: ["created_at", false] },
+      { table: "logs", label: "Recent activity", maxRows: 300, order: ["timestamp", false] },
+      { table: "chats", label: "Support messages", maxRows: 100, order: ["timestamp", false] },
+      { table: "material_borrows", label: "Borrow records", maxRows: 250, order: ["borrowed_at", false] },
+      { table: "suppliers", label: "Suppliers", maxRows: 150, order: ["created_at", false] },
+      { table: "restock_requests", label: "Restock requests", maxRows: 150, order: ["created_at", false] },
+      { table: "culture_logs", label: "Culture logs", maxRows: 100, order: ["ready_at", true] },
+      { table: "maintenance_requests", label: "Maintenance records", maxRows: 250, order: ["created_at", false] },
+    ];
+  }
+
+  const plan = [
+    {
+      table: "materials",
+      label: "Department inventory",
+      maxRows: 800,
+      filters: [["dept", dept]],
+      order: ["name", true],
+    },
+    {
+      table: "item_requests",
+      label: "Your requests",
+      maxRows: 150,
+      filters: [["requested_by", userId]],
+      order: ["created_at", false],
+    },
+    {
+      table: "logs",
+      label: "Recent department history",
+      maxRows: 200,
+      filters: [["dept", dept]],
+      order: ["timestamp", false],
+    },
+    {
+      table: "chats",
+      label: "Support messages",
+      maxRows: 60,
+      filters: [["dept", dept]],
+      order: ["timestamp", false],
+    },
+    {
+      table: "material_borrows",
+      label: "Your borrow records",
+      maxRows: 150,
+      filters: [["borrower_id", userId]],
+      order: ["borrowed_at", false],
+    },
+    {
+      table: "maintenance_requests",
+      label: "Your maintenance requests",
+      maxRows: 150,
+      filters: [["requested_by", userId]],
+      order: ["created_at", false],
+    },
+  ];
+
+  if (dept === VIPM_DEPARTMENT) {
+    plan.push({
+      table: "culture_logs",
+      label: "Culture logs",
+      maxRows: 100,
+      filters: [["dept", VIPM_DEPARTMENT]],
+      order: ["ready_at", true],
+    });
+  }
+
+  return plan;
+}
+
+async function prefetchCollectionSnapshot(task) {
+  const fetchWithOrdering = async (includeOrder) => {
+    const rows = [];
+    let cursor = null;
+
+    while (rows.length < task.maxRows) {
+      const take = Math.min(OFFLINE_PAGE_SIZE, task.maxRows - rows.length);
+      const queries = [];
+
+      (task.filters || []).forEach(([field, value]) => {
+        if (value !== null && value !== undefined && value !== "") {
+          queries.push(Query.equal(field, value));
+        }
+      });
+
+      if (includeOrder && task.order) {
+        const [field, ascending] = task.order;
+        queries.push(ascending ? Query.orderAsc(field) : Query.orderDesc(field));
+      }
+
+      queries.push(Query.limit(take));
+      if (cursor) queries.push(Query.cursorAfter(cursor));
+
+      const response = await databases.listDocuments(
+        appwriteDatabaseId,
+        collectionFor(task.table),
+        queries
+      );
+
+      const documents = (response.documents || []).map(mapDocument);
+      rows.push(...documents);
+
+      if (!documents.length || documents.length < take || rows.length >= Number(response.total || 0)) {
+        break;
+      }
+
+      cursor = documents[documents.length - 1]?.$id || documents[documents.length - 1]?.id;
+      if (!cursor) break;
+    }
+
+    return rows.slice(0, task.maxRows);
+  };
+
+  let rows;
+  try {
+    rows = await fetchWithOrdering(true);
+  } catch (error) {
+    const message = String(error?.message || "").toLowerCase();
+    if (!task.order || (!message.includes("index") && !message.includes("order"))) {
+      throw error;
+    }
+    rows = await fetchWithOrdering(false);
+  }
+
+  await cacheRows(task.table, rows, { replace: true });
+  return rows.length;
+}
+
+export async function prepareOfflineAccess(userId, profile, { force = false } = {}) {
+  if (!userId || !profile || profile.status !== "approved") {
+    return { prepared: false, skipped: true, reason: "Account is not approved." };
+  }
+
+  setOfflineScope(userId);
+  await setMeta("currentProfile", profile);
+
+  const key = offlineSnapshotKey(userId);
+  const previous = await getMeta(key);
+  const signature = offlineProfileSignature(profile);
+  const previousTime = previous?.completedAt ? new Date(previous.completedAt).getTime() : 0;
+  const stillFresh =
+    previous?.signature === signature &&
+    previousTime > 0 &&
+    Date.now() - previousTime < OFFLINE_REFRESH_INTERVAL_MS;
+
+  if (!isOnline()) {
+    const offlineReady = Boolean(previous?.completedAt && previous?.signature === signature);
+    setSyncStatus({
+      online: false,
+      preparing: false,
+      offlineReady,
+      lastPreparedAt: previous?.completedAt || null,
+      preparedRows: Number(previous?.rowCount || 0),
+      prepareProgress: offlineReady ? 100 : 0,
+      prepareMessage: offlineReady
+        ? "Offline sections are ready on this device."
+        : "Connect once to prepare all sections for offline use.",
+    });
+    return { prepared: offlineReady, offline: true, skipped: true };
+  }
+
+  if (!force && stillFresh) {
+    setSyncStatus({
+      preparing: false,
+      offlineReady: true,
+      lastPreparedAt: previous.completedAt,
+      preparedRows: Number(previous.rowCount || 0),
+      prepareProgress: 100,
+      prepareMessage: "Offline access is ready.",
+    });
+    return { prepared: true, skipped: true, fresh: true, ...previous };
+  }
+
+  if (offlinePreparationPromise) return offlinePreparationPromise;
+
+  offlinePreparationPromise = (async () => {
+    const plan = offlinePrefetchPlan(userId, profile);
+    const results = [];
+    const errors = [];
+    let downloadedRows = 0;
+
+    setSyncStatus({
+      preparing: true,
+      prepareProgress: 0,
+      prepareMessage: "Preparing offline access…",
+      error: null,
+    });
+
+    for (let index = 0; index < plan.length; index += 1) {
+      const task = plan[index];
+      setSyncStatus({
+        preparing: true,
+        prepareProgress: Math.round((index / plan.length) * 100),
+        prepareMessage: `Saving ${task.label} for offline use…`,
+      });
+
+      try {
+        const rowCount = await prefetchCollectionSnapshot(task);
+        downloadedRows += rowCount;
+        results.push({ table: task.table, rows: rowCount, cap: task.maxRows });
+      } catch (error) {
+        errors.push({
+          table: task.table,
+          message: error?.message || "Unable to prepare this section.",
+        });
+      }
+    }
+
+    const completedAt = isoNow();
+    const snapshot = {
+      version: OFFLINE_SNAPSHOT_VERSION,
+      signature,
+      completedAt,
+      rowCount: downloadedRows,
+      results,
+      errors,
+    };
+
+    await setMeta(key, snapshot);
+    setSyncStatus({
+      preparing: false,
+      prepareProgress: 100,
+      offlineReady: errors.length === 0,
+      lastPreparedAt: completedAt,
+      preparedRows: downloadedRows,
+      prepareMessage: errors.length
+        ? `Offline preparation finished with ${errors.length} section error${errors.length === 1 ? "" : "s"}.`
+        : "All sections are ready for offline use.",
+      error: errors.length
+        ? errors.map((item) => `${item.table}: ${item.message}`).join(" · ")
+        : null,
+    });
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("labtrack-offline-ready", { detail: snapshot }));
+    }
+
+    return { prepared: errors.length === 0, ...snapshot };
+  })().finally(() => {
+    offlinePreparationPromise = null;
+  });
+
+  return offlinePreparationPromise;
+}
+
+async function refreshOfflineAccessIfDue() {
+  if (!isOnline()) return;
+  const user = await getMeta("currentUser");
+  const profile = await getMeta("currentProfile");
+  if (!user?.id || profile?.status !== "approved") return;
+  await prepareOfflineAccess(user.id, profile).catch(() => {});
+}
+
+async function replayQueuedMutation(operation) {
+  if (operation.kind === "insert") {
+    for (const row of operation.rows || []) {
+      const id = row.id || row.$id;
+      try {
+        await createRowOnline(operation.table, row, id);
+      } catch (error) {
+        const duplicate = Number(error?.code || 0) === 409 ||
+          String(error?.message || "").toLowerCase().includes("already exists");
+        if (!duplicate) throw error;
+        await getByIdOnline(operation.table, id);
+      }
+    }
+    return;
+  }
+
+  if (operation.kind === "update") {
+    for (const id of operation.ids || []) {
+      await updateRowOnline(operation.table, id, operation.payload || {});
+    }
+    return;
+  }
+
+  if (operation.kind === "delete") {
+    for (const id of operation.ids || []) {
+      try {
+        await deleteRowOnline(operation.table, id);
+      } catch (error) {
+        const missing = Number(error?.code || 0) === 404;
+        if (!missing) throw error;
+        await removeCachedRows(operation.table, [id]);
+      }
+    }
+    return;
+  }
+
+  throw new Error(`Unknown offline operation type: ${operation.kind}`);
+}
+
+export async function syncOfflineData() {
+  if (!isOnline()) {
+    setSyncStatus({ online: false, syncing: false });
+    return getSyncStatus();
+  }
+
+  if (getSyncStatus().syncing) return getSyncStatus();
+
+  setSyncStatus({ online: true, syncing: true, error: null });
+  const queue = await listQueuedMutations();
+  let syncError = null;
+
+  for (const operation of queue) {
+    try {
+      await replayQueuedMutation(operation);
+      await deleteQueuedMutation(operation.id);
+    } catch (error) {
+      syncError = error;
+      await updateQueuedMutation(operation.id, {
+        attempts: Number(operation.attempts || 0) + 1,
+        lastError: error?.message || String(error),
+      });
+      break;
+    }
+  }
+
+  await refreshPendingCount();
+  const lastSyncedAt = syncError ? getSyncStatus().lastSyncedAt : isoNow();
+  setSyncStatus({
+    online: isOnline(),
+    syncing: false,
+    lastSyncedAt,
+    error: syncError?.message || null,
+  });
+
+  if (!syncError && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("labtrack-data-synced", {
+      detail: getSyncStatus(),
+    }));
+  }
+
+  return getSyncStatus();
+}
+
+export const offlineSync = {
+  getStatus: getSyncStatus,
+  subscribe: subscribeSyncStatus,
+  syncNow: syncOfflineData,
+  prepareForUser: prepareOfflineAccess,
+  refreshIfDue: refreshOfflineAccessIfDue,
+};
+
+if (typeof window !== "undefined") {
+  window.addEventListener("online", () => {
+    syncOfflineData()
+      .then(() => refreshOfflineAccessIfDue())
+      .catch(() => {});
+  });
+
+  window.addEventListener("offline", () => {
+    setSyncStatus({ online: false, syncing: false });
+  });
+
+  requestPersistentStorage().catch(() => {});
+  refreshPendingCount()
+    .then((pending) => {
+      if (pending > 0 && isOnline()) {
+        window.setTimeout(() => syncOfflineData().catch(() => {}), 700);
+      }
+    })
+    .catch(() => {});
+}
+
 const authListeners = new Set();
 
 function notifyAuthListeners(event, session) {
@@ -1358,6 +1987,9 @@ export const supabase = isAppwriteConfigured
             }
             await account.createEmailPasswordSession(email, password);
             const user = mapUser(await account.get());
+            setOfflineScope(user?.id || "guest");
+            await setMeta("currentUser", user);
+            await setMeta("locallySignedOut", false);
             const session = { user };
             notifyAuthListeners("SIGNED_IN", session);
             return ok({ user, session });
@@ -1377,7 +2009,7 @@ export const supabase = isAppwriteConfigured
               // Some Appwrite settings require verification before session creation.
             }
             try {
-              await createRow("profiles", {
+              const createdProfile = await createRow("profiles", {
                 email,
                 full_name: fullName,
                 dept,
@@ -1388,11 +2020,15 @@ export const supabase = isAppwriteConfigured
                 reviewed_at: "",
                 created_at: isoNow(),
               }, newUser.$id);
+              await setMeta("currentProfile", createdProfile);
             } catch (profileError) {
               // Profile may already exist if user retried signup.
               if (!String(profileError?.message || "").toLowerCase().includes("already")) throw profileError;
             }
             const user = mapUser(newUser);
+            setOfflineScope(user?.id || "guest");
+            await setMeta("currentUser", user);
+            await setMeta("locallySignedOut", false);
             const session = { user };
             notifyAuthListeners("SIGNED_IN", session);
             return ok({ user, session });
@@ -1402,11 +2038,25 @@ export const supabase = isAppwriteConfigured
         },
 
         async signOut() {
-          try {
-            await account.deleteSession("current");
-          } catch {
-            // Already signed out.
+          if (isOnline()) {
+            try {
+              await account.deleteSession("current");
+            } catch {
+              // The local logout still proceeds if the remote session was already gone.
+            }
           }
+          await setMeta("locallySignedOut", true);
+          await deleteMeta("currentUser");
+          await deleteMeta("currentProfile");
+          setOfflineScope("guest");
+          setSyncStatus({
+            preparing: false,
+            prepareProgress: 0,
+            prepareMessage: "",
+            offlineReady: false,
+            lastPreparedAt: null,
+            preparedRows: 0,
+          });
           notifyAuthListeners("SIGNED_OUT", null);
           return ok(null);
         },
@@ -1427,5 +2077,7 @@ export const supabase = isAppwriteConfigured
       removeChannel(channel) {
         channel?.unsubscribe?.();
       },
+
+      offline: offlineSync,
     }
   : null;

@@ -31,7 +31,7 @@ import {
   ArrowRightLeft,
   FileSpreadsheet,
 } from "lucide-react";
-import { isSupabaseConfigured, supabase, offlineSync } from "./offlineSupabaseClient";
+import { isSupabaseConfigured, supabase, offlineSync } from "./supabaseClient";
 
 const DEPARTMENTS = [
   "BMO Laboratory",
@@ -1123,9 +1123,10 @@ function AccountGate({ profile, onLogout }) {
 }
 
 export default function App() {
-  const [offlineState, setOfflineState] = useState(() => offlineSync.getSnapshot());
+  const [offlineState, setOfflineState] = useState(() => offlineSync.getStatus());
 
   useEffect(() => offlineSync.subscribe(setOfflineState), []);
+
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [authMode, setAuthMode] = useState("login");
@@ -1749,6 +1750,34 @@ export default function App() {
     loadData();
   }, [profile, loadData]);
 
+  useEffect(() => {
+    if (!session?.user?.id || !profile || profile.status !== "approved") return;
+
+    let cancelled = false;
+    offlineSync
+      .prepareForUser(session.user.id, profile)
+      .catch((error) => {
+        if (!cancelled) {
+          console.warn("LabTrack could not finish preparing offline access.", error);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id, profile?.id, profile?.role, profile?.status, profile?.dept]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !profile || profile.status !== "approved") return undefined;
+
+    const refreshAfterSync = () => {
+      loadData();
+      loadChats();
+    };
+
+    window.addEventListener("labtrack-data-synced", refreshAfterSync);
+    return () => window.removeEventListener("labtrack-data-synced", refreshAfterSync);
+  }, [profile, loadData, loadChats]);
 
   useEffect(() => {
     if (!profile || profile.status !== "approved") return;
@@ -3272,28 +3301,38 @@ export default function App() {
     <div className="lt-root" style={{ "--accent": accent, "--accent-soft": accentSoft }}>
       <div
         className={`lt-sync-status ${
-          !offlineState.online
-            ? "offline"
-            : offlineState.syncing
-              ? "syncing"
-              : offlineState.pending
-                ? "pending"
-                : ""
+          offlineState.preparing
+            ? "preparing"
+            : !offlineState.online
+              ? "offline"
+              : offlineState.syncing
+                ? "syncing"
+                : offlineState.pending
+                  ? "pending"
+                  : offlineState.offlineReady
+                    ? "ready"
+                    : ""
         }`}
         role="status"
         aria-live="polite"
       >
         <span className="lt-sync-dot" />
         <span>
-          {!offlineState.online
-            ? `${offlineState.pending || 0} saved change${offlineState.pending === 1 ? "" : "s"} waiting for internet`
-            : offlineState.syncing
-              ? "Synchronizing saved changes…"
-              : offlineState.pending
-                ? `${offlineState.pending} change${offlineState.pending === 1 ? "" : "s"} waiting to sync`
-                : "Online · data synchronized"}
+          {offlineState.preparing
+            ? `${offlineState.prepareMessage || "Preparing offline access…"} ${offlineState.prepareProgress || 0}%`
+            : !offlineState.online
+              ? offlineState.offlineReady
+                ? `Offline · all prepared sections available${offlineState.pending ? ` · ${offlineState.pending} waiting to sync` : ""}`
+                : "Offline · connect once to prepare every section"
+              : offlineState.syncing
+                ? "Synchronizing saved changes…"
+                : offlineState.pending
+                  ? `${offlineState.pending} saved change${offlineState.pending === 1 ? "" : "s"} waiting to sync`
+                  : offlineState.offlineReady
+                    ? "Online · offline access ready"
+                    : "Online · preparing offline access after login"}
         </span>
-        {offlineState.online && offlineState.pending > 0 && (
+        {offlineState.online && offlineState.pending > 0 && !offlineState.syncing && (
           <button type="button" onClick={() => offlineSync.syncNow()}>
             Sync now
           </button>
@@ -3315,21 +3354,18 @@ export default function App() {
         .lt-root * { box-sizing:border-box; }
         .lt-sync-status {
           position:fixed; top:max(10px, env(safe-area-inset-top)); right:12px; z-index:9999;
-          display:flex; align-items:center; gap:7px; max-width:min(360px, calc(100vw - 24px));
+          display:flex; align-items:center; gap:7px; max-width:min(430px, calc(100vw - 24px));
           padding:8px 11px; border:1px solid rgba(30,42,40,.14); border-radius:999px;
-          background:rgba(255,255,255,.94); color:var(--ink); box-shadow:0 10px 30px rgba(30,42,40,.12);
+          background:rgba(255,255,255,.95); color:var(--ink); box-shadow:0 10px 30px rgba(30,42,40,.12);
           backdrop-filter:blur(12px); font-size:11px; font-weight:700;
         }
-        .lt-sync-status.offline { background:rgba(255,246,225,.96); color:#7A4A0A; }
-        .lt-sync-status.syncing { background:rgba(232,243,255,.96); color:#245B86; }
-        .lt-sync-status.pending { background:rgba(238,247,237,.96); color:#356B3E; }
-        .lt-sync-dot { width:8px; height:8px; border-radius:50%; background:#3A8347; flex:0 0 auto; }
-        .lt-sync-status.offline .lt-sync-dot { background:#C4762A; }
-        .lt-sync-status.syncing .lt-sync-dot { background:#3B75A6; animation:lt-sync-pulse 1s ease-in-out infinite; }
-        .lt-sync-status button {
-          border:0; background:transparent; color:inherit; font:inherit; padding:0; cursor:pointer;
-          text-decoration:underline; text-underline-offset:2px;
-        }
+        .lt-sync-status.offline { background:rgba(255,246,225,.97); color:#7A4A0A; }
+        .lt-sync-status.syncing, .lt-sync-status.preparing { background:rgba(232,243,255,.97); color:#245B86; }
+        .lt-sync-status.pending { background:rgba(255,244,230,.97); color:#85500C; }
+        .lt-sync-status.ready { background:rgba(238,247,237,.97); color:#356B3E; }
+        .lt-sync-dot { width:7px; height:7px; flex:0 0 auto; border-radius:50%; background:currentColor; box-shadow:0 0 0 3px color-mix(in srgb, currentColor 15%, transparent); }
+        .lt-sync-status.preparing .lt-sync-dot, .lt-sync-status.syncing .lt-sync-dot { animation:lt-sync-pulse 1.2s ease-in-out infinite; }
+        .lt-sync-status button { border:0; border-radius:999px; padding:4px 8px; background:currentColor; color:#fff; font:inherit; cursor:pointer; }
         @keyframes lt-sync-pulse { 50% { opacity:.35; transform:scale(.78); } }
         .lt-mono { font-family:'JetBrains Mono',monospace; }
         .lt-note { font-size:13px; line-height:1.55; color:var(--ink-soft); background:var(--paper); border:1px solid var(--border); padding:14px; border-radius:4px; }
@@ -3339,7 +3375,18 @@ export default function App() {
         .lt-login-card { width:100%; max-width:420px; background:var(--card-bg); border:1px solid var(--border); border-radius:6px; padding:32px; position:relative; box-shadow:0 18px 70px rgba(30,42,40,.08); }
         .lt-login-card::before { content:""; position:absolute; top:0; left:24px; right:24px; border-top:1px dashed var(--border); }
         .lt-brand { display:flex; align-items:center; gap:10px; margin-bottom:24px; }
-        .lt-brand-mark { width:36px; height:36px; border-radius:50%; background:#1F6F78; display:flex; align-items:center; justify-content:center; color:#fff; flex:0 0 auto; }
+        .lt-brand-login { flex-direction:column; justify-content:center; text-align:center; gap:12px; }
+        .lt-login-logo {
+          width:clamp(118px, 34vw, 154px);
+          height:auto;
+          display:block;
+          border-radius:25%;
+          box-shadow:0 14px 38px rgba(7,79,43,.16);
+        }
+        .lt-brand-mark { width:42px; height:42px; border-radius:12px; background:transparent; display:flex; align-items:center; justify-content:center; color:#fff; flex:0 0 auto; overflow:hidden; }
+        .lt-brand-logo-image { display:block; width:100%; height:100%; object-fit:contain; }
+        .lt-brand-powered { font-size:10px; color:var(--ink-soft); margin-top:3px; letter-spacing:.02em; }
+        .lt-brand-powered strong { color:#3A8347; font-weight:800; }
         .lt-brand-name { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:20px; letter-spacing:-.02em; }
         .lt-brand-sub { font-size:12px; color:var(--ink-soft); margin-top:1px; }
         .lt-auth-switch { display:flex; border:1px solid var(--border); border-radius:4px; overflow:hidden; margin-bottom:16px; }
@@ -3943,11 +3990,15 @@ export default function App() {
             className="lt-login-card"
             onSubmit={authMode === "signup" ? handleSignUp : handleSignIn}
           >
-            <div className="lt-brand">
-              <div className="lt-brand-mark"><FlaskConical size={18} /></div>
+            <div className="lt-brand lt-brand-login">
+              <img
+                className="lt-login-logo"
+                src="/labtrack-powered-by-luntian.png"
+                alt="LabTrack powered by Luntian"
+              />
               <div>
                 <div className="lt-brand-name">LabTrack</div>
-                <div className="lt-brand-sub">Low-egress lab material monitoring</div>
+                <div className="lt-brand-sub">Offline-ready laboratory material monitoring</div>
               </div>
             </div>
 
@@ -4025,7 +4076,7 @@ export default function App() {
               <ChevronDown className="lt-mobile-nav-chevron" size={18} />
             </button>
             <div className="lt-sidebar-brand">
-              <FlaskConical size={16} color={isAdmin ? "var(--admin-accent)" : "var(--user-accent)"} />
+              <img src="/labtrack-logo-mark.svg" alt="" style={{ width: 25, height: 25, borderRadius: 7, flex: "0 0 auto" }} />
               <div className="lt-sidebar-brand-copy">
                 <span className="lt-brand-name" style={{ fontSize: 15 }}>LabTrack</span>
                 <span className="lt-sidebar-powered">
