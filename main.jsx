@@ -7,9 +7,9 @@ import "@fontsource/space-grotesk/latin-600.css";
 import "@fontsource/space-grotesk/latin-700.css";
 import "@fontsource/jetbrains-mono/latin-400.css";
 import "@fontsource/jetbrains-mono/latin-500.css";
+import "./labtrack-stable-ui.css";
 import "./labtrack-original-font.css";
-import "./labtrack-ui-enhancements.css";
-import "./labtrack-ui-enhancements.js";
+
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
@@ -23,7 +23,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
 
 
 
-const LABTRACK_CACHE_VERSION = "labtrack-client-write-text-repair-20260802";
+const LABTRACK_CACHE_VERSION = "labtrack-stability-reset-20260802-v1";
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", async () => {

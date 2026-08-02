@@ -1,0 +1,106 @@
+:root {
+  --lt-stable-green: #2e7d55;
+  --lt-stable-mint: #dff3e6;
+  --lt-stable-border: rgba(65, 108, 78, .22);
+  font-family: "Inter", Arial, sans-serif;
+}
+
+html, body, #root { min-height: 100%; }
+body { margin: 0; background: #f2f8f3; }
+
+html body #root .lt-root,
+html body #root .lt-root *,
+html body #root .lt-root button,
+html body #root .lt-root input,
+html body #root .lt-root select,
+html body #root .lt-root textarea {
+  font-family: "Inter", Arial, sans-serif !important;
+}
+
+html body #root .lt-root :is(h1,h2,h3,h4,.lt-h1,.lt-brand-name,.lt-section-title,.lt-modal-title) {
+  font-family: "Space Grotesk", "Inter", Arial, sans-serif !important;
+}
+
+html body #root .lt-root {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(116, 218, 145, .22), transparent 35%),
+    linear-gradient(180deg, #f8fcf8 0%, #edf6ef 100%) !important;
+}
+
+html body #root .lt-sidebar {
+  background: rgba(248, 252, 248, .96) !important;
+  border-right: 1px solid var(--lt-stable-border) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+html body #root .lt-sidebar :is(.lt-brand-mark,.lt-brand-logo-image,.lt-sidebar-logo-image),
+html body #root .lt-sidebar img[src*="labtrack-green-icon"] {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  max-width: 34px !important;
+  min-height: 34px !important;
+  max-height: 34px !important;
+  object-fit: contain !important;
+  border-radius: 9px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+}
+
+html body #root .lt-login-card :is(.lt-brand-mark,.lt-brand-logo-image,.lt-login-logo),
+html body #root .lt-login-card img[src*="labtrack-green-icon"] {
+  width: 72px !important;
+  height: 72px !important;
+  min-width: 72px !important;
+  max-width: 72px !important;
+  object-fit: contain !important;
+  border-radius: 18px !important;
+  padding: 0 !important;
+  margin: 0 auto 12px !important;
+}
+
+html body #root .lt-root :is(.lt-card,.lt-stat-card,.lt-table-wrap,.lt-modal,.lt-login-card,.lt-request-card,.lt-culture-card) {
+  background: rgba(255,255,255,.92) !important;
+  border: 1px solid var(--lt-stable-border) !important;
+  box-shadow: 0 8px 24px rgba(34, 78, 49, .07) !important;
+  backdrop-filter: none !important;
+}
+
+html body #root .lt-sidebar-tab.active::before {
+  background: var(--lt-stable-green) !important;
+  box-shadow: none !important;
+}
+
+html body #root :is(.lt-btn-primary,.lt-btn-accent,.lt-subtab.active) {
+  background: var(--lt-stable-green) !important;
+  border-color: var(--lt-stable-green) !important;
+  color: #fff !important;
+}
+
+html body #root .lt-h1 {
+  color: #193f2b !important;
+  background: none !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+html body #root .lt-root :is(.lt-motion-item,.lt-scroll-reveal) {
+  opacity: 1 !important;
+  transform: none !important;
+  filter: none !important;
+  animation: none !important;
+}
+
+html body #root .lt-root :is(button,a,input,select,textarea) {
+  transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease, transform .18s ease !important;
+}
+
+html body #root .lt-root button:hover { transform: translateY(-1px); }
+
+@media (max-width: 860px) {
+  html body #root .lt-sidebar :is(.lt-brand-mark,.lt-brand-logo-image,.lt-sidebar-logo-image),
+  html body #root .lt-sidebar img[src*="labtrack-green-icon"] {
+    width: 30px !important; height: 30px !important; min-width: 30px !important;
+  }
+}

@@ -31,7 +31,7 @@ const databases = client ? new Databases(client) : null;
 
 const isoNow = () => new Date().toISOString();
 const todayYmd = () => new Date().toISOString().slice(0, 10);
-const APPWRITE_REQUEST_TIMEOUT_MS = 20000;
+const APPWRITE_REQUEST_TIMEOUT_MS = 15000;
 
 function withRequestTimeout(promise, label, timeoutMs = APPWRITE_REQUEST_TIMEOUT_MS) {
   let timer;
@@ -51,6 +51,10 @@ function withRequestTimeout(promise, label, timeoutMs = APPWRITE_REQUEST_TIMEOUT
   return Promise.race([Promise.resolve(promise), timeout]).finally(() => {
     clearTimeout(timer);
   });
+}
+
+function isRequestTimeout(error) {
+  return /timed out after/i.test(String(error?.message || error || ""));
 }
 
 function toError(error, fallback = "Appwrite request failed.") {
@@ -220,17 +224,25 @@ function isOverdueBorrow(row) {
 }
 
 async function listCollection(table, queries = []) {
-  const response = await withRequestTimeout(
-    databases.listDocuments({
-      databaseId: appwriteDatabaseId,
-      collectionId: collectionFor(table),
-      queries,
-      total: true,
-      ttl: 0,
-    }),
-    `Load ${table}`
-  );
-  return (response.documents || []).map(mapDocument);
+  try {
+    const response = await withRequestTimeout(
+      databases.listDocuments({
+        databaseId: appwriteDatabaseId,
+        collectionId: collectionFor(table),
+        queries,
+        total: true,
+        ttl: 0,
+      }),
+      `Load ${table}`
+    );
+    return (response.documents || []).map(mapDocument);
+  } catch (error) {
+    if (isRequestTimeout(error)) {
+      console.warn(`LabTrack skipped ${table} after a network timeout.`, error);
+      return [];
+    }
+    throw error;
+  }
 }
 
 async function listAllCollection(table, { pageSize = 100, maxRows = 5000 } = {}) {
@@ -503,6 +515,10 @@ class AppwriteQueryBuilder {
         count: this.orFilters.length || this.searchFilters.length ? data.length : response.total ?? data.length,
       });
     } catch (error) {
+      if (isRequestTimeout(error)) {
+        console.warn(`LabTrack skipped ${this.table} after a network timeout.`, error);
+        return ok(this.headOnly ? null : [], { count: 0, warning: String(error?.message || error) });
+      }
       return fail(error);
     }
   }
