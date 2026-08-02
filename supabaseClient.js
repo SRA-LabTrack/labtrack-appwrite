@@ -1,6 +1,6 @@
 import { Account, Client, Databases, ID, Query } from "appwrite";
 
-const appwriteEndpoint = import.meta.env.VITE_APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1";
+const appwriteEndpoint = import.meta.env.VITE_APPWRITE_ENDPOINT || "https://fra.cloud.appwrite.io/v1";
 const appwriteProjectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const appwriteDatabaseId = import.meta.env.VITE_APPWRITE_DATABASE_ID || "labtrack";
 
@@ -31,14 +31,46 @@ const databases = client ? new Databases(client) : null;
 
 const isoNow = () => new Date().toISOString();
 const todayYmd = () => new Date().toISOString().slice(0, 10);
+const APPWRITE_REQUEST_TIMEOUT_MS = 20000;
+
+function withRequestTimeout(promise, label, timeoutMs = APPWRITE_REQUEST_TIMEOUT_MS) {
+  let timer;
+
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      reject(
+        new Error(
+          `${label} timed out after ${Math.round(timeoutMs / 1000)} seconds. ` +
+          `Endpoint: ${appwriteEndpoint}. Check the Appwrite Web platform domain, ` +
+          `internet connection, and browser console.`
+        )
+      );
+    }, timeoutMs);
+  });
+
+  return Promise.race([Promise.resolve(promise), timeout]).finally(() => {
+    clearTimeout(timer);
+  });
+}
 
 function toError(error, fallback = "Appwrite request failed.") {
+  const baseMessage =
+    error?.message ||
+    error?.response?.message ||
+    error?.type ||
+    fallback;
+
+  const details = [
+    error?.code ? `code ${error.code}` : "",
+    error?.type && error.type !== baseMessage ? error.type : "",
+  ].filter(Boolean);
+
   return {
-    message:
-      error?.message ||
-      error?.response?.message ||
-      error?.type ||
-      fallback,
+    message: details.length
+      ? `${baseMessage} (${details.join(", ")})`
+      : String(baseMessage),
+    code: error?.code || null,
+    type: error?.type || "",
   };
 }
 
@@ -58,10 +90,21 @@ function collectionFor(table) {
 
 function cleanPayload(payload) {
   const out = {};
+
   Object.entries(payload || {}).forEach(([key, value]) => {
-    if (key === "id" || key.startsWith("$") || value === undefined) return;
+    if (
+      key === "id" ||
+      key.startsWith("$") ||
+      value === undefined ||
+      value === null
+    ) {
+      return;
+    }
+
+    if (typeof value === "number" && !Number.isFinite(value)) return;
     out[key] = value;
   });
+
   return out;
 }
 
@@ -104,11 +147,14 @@ async function getCurrentProfile() {
   const user = await getCurrentUser();
   if (!user) return { user: null, profile: null };
   try {
-    const profile = await databases.getDocument({
-      databaseId: appwriteDatabaseId,
-      collectionId: COLLECTIONS.profiles,
-      documentId: user.id,
-    });
+    const profile = await withRequestTimeout(
+      databases.getDocument({
+        databaseId: appwriteDatabaseId,
+        collectionId: COLLECTIONS.profiles,
+        documentId: user.id,
+      }),
+      "Load profile"
+    );
     return { user, profile: mapDocument(profile) };
   } catch {
     return { user, profile: null };
@@ -174,13 +220,16 @@ function isOverdueBorrow(row) {
 }
 
 async function listCollection(table, queries = []) {
-  const response = await databases.listDocuments({
-    databaseId: appwriteDatabaseId,
-    collectionId: collectionFor(table),
-    queries,
-    total: true,
-    ttl: 0,
-  });
+  const response = await withRequestTimeout(
+    databases.listDocuments({
+      databaseId: appwriteDatabaseId,
+      collectionId: collectionFor(table),
+      queries,
+      total: true,
+      ttl: 0,
+    }),
+    `Load ${table}`
+  );
   return (response.documents || []).map(mapDocument);
 }
 
@@ -190,13 +239,16 @@ async function listAllCollection(table, { pageSize = 100, maxRows = 5000 } = {})
 
   while (rows.length < maxRows) {
     const take = Math.min(pageSize, maxRows - rows.length);
-    const response = await databases.listDocuments({
-      databaseId: appwriteDatabaseId,
-      collectionId: collectionFor(table),
-      queries: [Query.limit(take), Query.offset(offset)],
-      total: true,
-      ttl: 0,
-    });
+    const response = await withRequestTimeout(
+      databases.listDocuments({
+        databaseId: appwriteDatabaseId,
+        collectionId: collectionFor(table),
+        queries: [Query.limit(take), Query.offset(offset)],
+        total: true,
+        ttl: 0,
+      }),
+      `Load all ${table}`
+    );
     const documents = (response.documents || []).map(mapDocument);
     rows.push(...documents);
 
@@ -208,41 +260,53 @@ async function listAllCollection(table, { pageSize = 100, maxRows = 5000 } = {})
 }
 
 async function getById(table, id) {
-  const document = await databases.getDocument({
-    databaseId: appwriteDatabaseId,
-    collectionId: collectionFor(table),
-    documentId: id,
-  });
+  const document = await withRequestTimeout(
+    databases.getDocument({
+      databaseId: appwriteDatabaseId,
+      collectionId: collectionFor(table),
+      documentId: id,
+    }),
+    `Load ${table} record`
+  );
   return mapDocument(document);
 }
 
 async function createRow(table, payload, documentId = ID.unique()) {
   const data = cleanPayload(payload);
-  const document = await databases.createDocument({
-    databaseId: appwriteDatabaseId,
-    collectionId: collectionFor(table),
-    documentId,
-    data,
-  });
+  const document = await withRequestTimeout(
+    databases.createDocument({
+      databaseId: appwriteDatabaseId,
+      collectionId: collectionFor(table),
+      documentId,
+      data,
+    }),
+    `Create ${table} record`
+  );
   return mapDocument(document);
 }
 
 async function updateRow(table, id, payload) {
-  const document = await databases.updateDocument({
-    databaseId: appwriteDatabaseId,
-    collectionId: collectionFor(table),
-    documentId: id,
-    data: cleanPayload(payload),
-  });
+  const document = await withRequestTimeout(
+    databases.updateDocument({
+      databaseId: appwriteDatabaseId,
+      collectionId: collectionFor(table),
+      documentId: id,
+      data: cleanPayload(payload),
+    }),
+    `Update ${table} record`
+  );
   return mapDocument(document);
 }
 
 async function deleteRow(table, id) {
-  await databases.deleteDocument({
-    databaseId: appwriteDatabaseId,
-    collectionId: collectionFor(table),
-    documentId: id,
-  });
+  await withRequestTimeout(
+    databases.deleteDocument({
+      databaseId: appwriteDatabaseId,
+      collectionId: collectionFor(table),
+      documentId: id,
+    }),
+    `Delete ${table} record`
+  );
   return null;
 }
 
@@ -417,13 +481,16 @@ class AppwriteQueryBuilder {
         }
       }
 
-      const response = await databases.listDocuments({
-        databaseId: appwriteDatabaseId,
-        collectionId: collectionFor(this.table),
-        queries: this.buildAppwriteQueries(),
-        total: true,
-        ttl: 0,
-      });
+      const response = await withRequestTimeout(
+        databases.listDocuments({
+          databaseId: appwriteDatabaseId,
+          collectionId: collectionFor(this.table),
+          queries: this.buildAppwriteQueries(),
+          total: true,
+          ttl: 0,
+        }),
+        `Load ${this.table}`
+      );
 
       let data = (response.documents || []).map(mapDocument);
       data = this.applyClientFilters(data);

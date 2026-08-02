@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FlaskConical,
   LayoutGrid,
@@ -302,7 +302,7 @@ function materialTypeLabel(value) {
 }
 
 function fmtTime(ts) {
-  if (!ts) return "â€”";
+  if (!ts) return "—";
   const d = new Date(ts);
   return d.toLocaleString("en-US", {
     month: "short",
@@ -407,7 +407,7 @@ function MaterialCard({
       <div className="lt-card-body">
         <div className="lt-perforation" />
         <div className="lt-card-eyebrow">
-          {material.category || "Uncategorized"}{showDept ? ` Â· ${material.dept}` : ""}
+          {material.category || "Uncategorized"}{showDept ? ` · ${material.dept}` : ""}
         </div>
         <div className={`lt-designation lt-designation-${material.material_type === "non_consumable" ? "durable" : "consumable"}`}>
           {materialTypeLabel(material.material_type)}
@@ -423,10 +423,10 @@ function MaterialCard({
           <span className="lt-card-updated">Updated {fmtTime(material.updated)}</span>
         </div>
         <div className={`lt-expiry lt-expiry-${expiryStatus}`}>
-          <CalendarClock size={12} /> {expiryLabel[expiryStatus]}{material.expires_at ? ` Â· ${fmtDate(material.expires_at)}` : ""}
+          <CalendarClock size={12} /> {expiryLabel[expiryStatus]}{material.expires_at ? ` · ${fmtDate(material.expires_at)}` : ""}
         </div>
         <div className="lt-card-approval">
-          <strong>Supplier:</strong> {material.supplier_name || "Not set"} Â· <strong>Price:</strong> â‚±{displayQty(material.price_per_unit || 0)}/{material.unit}
+          <strong>Supplier:</strong> {material.supplier_name || "Not set"} · <strong>Price:</strong> ₱{displayQty(material.price_per_unit || 0)}/{material.unit}
         </div>
         <div className="lt-card-approval lt-mr-line">
           <UserCheck size={12} /> <strong>MR:</strong> {material.material_responsible || "Not assigned"}
@@ -439,13 +439,13 @@ function MaterialCard({
         </div>
         {(material.material_type === "non_consumable" || material.maintenance_due_at || material.last_maintenance_at || material.maintenance_note) && (
           <div className={`lt-maintenance lt-maintenance-${maintenanceStatus}`}>
-            <strong>Maintenance:</strong> {maintenanceLabel[maintenanceStatus]}{material.maintenance_due_at ? ` Â· due ${fmtDate(material.maintenance_due_at)}` : ""}
-            <br /><strong>Condition:</strong> {material.condition || "Good"}{material.maintenance_note ? ` Â· ${material.maintenance_note}` : ""}
+            <strong>Maintenance:</strong> {maintenanceLabel[maintenanceStatus]}{material.maintenance_due_at ? ` · due ${fmtDate(material.maintenance_due_at)}` : ""}
+            <br /><strong>Condition:</strong> {material.condition || "Good"}{material.maintenance_note ? ` · ${material.maintenance_note}` : ""}
           </div>
         )}
         {material.approved_by_name && (
           <div className="lt-card-approval">
-            Approved by {material.approved_by_name}{material.approved_at ? ` Â· ${fmtTime(material.approved_at)}` : ""}
+            Approved by {material.approved_by_name}{material.approved_at ? ` · ${fmtTime(material.approved_at)}` : ""}
           </div>
         )}
         {hasActions && (
@@ -499,15 +499,15 @@ function MaterialDetails({ material }) {
 
   const detailRows = [
     ["Department", material.dept || "Not specified"],
-    ["MR â€” Material Responsibility", material.material_responsible || "Not assigned"],
+    ["MR — Material Responsibility", material.material_responsible || "Not assigned"],
     ["Category", material.category || "Uncategorized"],
     ["Material type", materialTypeLabel(material.material_type)],
     ["Current quantity", `${displayQty(material.qty)} ${material.unit || ""}`.trim()],
     ["Reorder threshold", `${displayQty(material.threshold)} ${material.unit || ""}`.trim()],
     ["Stock status", statusLabel[stockStatus]],
-    ["Expiry", material.expires_at ? `${fmtDate(material.expires_at)} Â· ${expiryLabel[expiryStatus]}` : "No expiry date"],
+    ["Expiry", material.expires_at ? `${fmtDate(material.expires_at)} · ${expiryLabel[expiryStatus]}` : "No expiry date"],
     ["Supplier", material.supplier_name || "Not set"],
-    ["Price per unit", `â‚±${displayQty(material.price_per_unit || 0)} / ${material.unit || "unit"}`],
+    ["Price per unit", `₱${displayQty(material.price_per_unit || 0)} / ${material.unit || "unit"}`],
     ["Hazard level", material.hazard_level || "Low"],
     ["Required PPE", material.ppe_required || "Standard lab PPE"],
     ["Storage instruction", material.storage_instruction || "Not specified"],
@@ -517,7 +517,7 @@ function MaterialDetails({ material }) {
     ["Compatibility notes", material.compatibility_notes || "No compatibility notes"],
     ["Condition", material.condition || "Good"],
     ["Last maintenance", material.last_maintenance_at ? fmtDate(material.last_maintenance_at) : "Not set"],
-    ["Next maintenance", material.maintenance_due_at ? `${fmtDate(material.maintenance_due_at)} Â· ${maintenanceLabel[maintenanceStatus]}` : "Not set"],
+    ["Next maintenance", material.maintenance_due_at ? `${fmtDate(material.maintenance_due_at)} · ${maintenanceLabel[maintenanceStatus]}` : "Not set"],
     ["Maintenance note", material.maintenance_note || "No maintenance note"],
     ["Approved by", material.approved_by_name || "Not recorded"],
     ["Approved at", material.approved_at ? fmtTime(material.approved_at) : "Not recorded"],
@@ -528,7 +528,7 @@ function MaterialDetails({ material }) {
     <div className="lt-material-details">
       <div className="lt-material-details-hero">
         <div>
-          <div className="lt-card-eyebrow">{material.category || "Uncategorized"} Â· {material.dept || "No department"}</div>
+          <div className="lt-card-eyebrow">{material.category || "Uncategorized"} · {material.dept || "No department"}</div>
           <div className="lt-material-details-name">{material.name}</div>
           <div className="lt-material-details-sub">{materialTypeLabel(material.material_type)} material record</div>
         </div>
@@ -628,7 +628,7 @@ function ChatPanel({ messages, currentRole, input, setInput, onSend, emptyText, 
           return (
             <div key={message.id} className={`lt-chat-row ${mine ? "mine" : "theirs"}`}>
               <div className={`lt-bubble ${mine ? "lt-bubble-user" : "lt-bubble-admin"}`}>{message.text}</div>
-              <div className="lt-bubble-meta">{message.sender_name} Â· {fmtTime(message.timestamp)}</div>
+              <div className="lt-bubble-meta">{message.sender_name} · {fmtTime(message.timestamp)}</div>
             </div>
           );
         })}
@@ -689,7 +689,7 @@ function NotificationList({ rows }) {
           <div className="lt-request-head">
             <div>
               <div className="lt-request-title">{n.title}</div>
-              <div className="lt-request-meta">{n.dept || "All departments"} Â· {n.detail}</div>
+              <div className="lt-request-meta">{n.dept || "All departments"} · {n.detail}</div>
             </div>
             <span className={`lt-tag lt-tag-${String(n.severity || "info").toLowerCase()}`}>{n.severity || "info"}</span>
           </div>
@@ -772,12 +772,12 @@ function ForecastTable({ rows, onCreateRestock }) {
             <tr key={`${row.material_id}-${row.dept}`}>
               <td><span className={`lt-tag lt-tag-${String(row.priority || "ok").toLowerCase()}`}>{row.priority || "ok"}</span></td>
               <td>{row.dept}</td>
-              <td>{row.material_name}<div className="lt-request-meta">{row.category || "Uncategorized"} Â· {row.hazard_level || "Low"} hazard</div></td>
+              <td>{row.material_name}<div className="lt-request-meta">{row.category || "Uncategorized"} · {row.hazard_level || "Low"} hazard</div></td>
               <td className="lt-mono">{displayQty(row.current_qty)} {row.unit}</td>
               <td className="lt-mono">{displayQty(row.weekly_usage_avg)} {row.unit}/week</td>
               <td>{fmtWeeks(row.weeks_until_empty)}</td>
               <td className="lt-mono">{displayQty(row.suggested_restock_qty)} {row.unit}</td>
-              <td className="lt-mono">â‚±{displayQty(row.estimated_restock_cost || 0)}</td>
+              <td className="lt-mono">₱{displayQty(row.estimated_restock_cost || 0)}</td>
               <td>{row.supplier_name || "Not set"}</td>
               <td>{row.reason}</td>
               {onCreateRestock && (
@@ -808,7 +808,7 @@ function RestockRequestsTable({ rows, onStatus }) {
               <td>{r.dept}</td>
               <td>{r.material_name}</td>
               <td className="lt-mono">{displayQty(r.qty)} {r.unit}</td>
-              <td className="lt-mono">â‚±{displayQty(r.estimated_cost || 0)}</td>
+              <td className="lt-mono">₱{displayQty(r.estimated_cost || 0)}</td>
               <td>{r.supplier_name || "Not set"}</td>
               <td>{r.reason}</td>
               <td className="lt-mono" style={{ fontSize: 12 }}>{fmtTime(r.updated_at || r.created_at)}</td>
@@ -844,15 +844,15 @@ function SuppliersTable({ rows, onDelete, onReview }) {
               <td>{s.dept || "All departments"}</td>
               <td><strong>{s.name}</strong><div className="lt-request-meta">{s.contact_person || "No contact person"}</div></td>
               <td>{s.material_name || "Any material"}<div className="lt-request-meta">{s.material_category || "Any category"}</div></td>
-              <td className="lt-mono">â‚±{displayQty(s.price_per_unit || 0)} / {s.unit || "unit"}</td>
-              <td>{s.email || "â€”"}<div className="lt-request-meta">{s.phone || "â€”"}</div></td>
+              <td className="lt-mono">₱{displayQty(s.price_per_unit || 0)} / {s.unit || "unit"}</td>
+              <td>{s.email || "—"}<div className="lt-request-meta">{s.phone || "—"}</div></td>
               <td>
                 <div>{s.submitted_by_name || "Unknown user"}</div>
-                <div className="lt-request-meta">{s.created_at ? new Date(s.created_at).toLocaleString() : "â€”"}</div>
+                <div className="lt-request-meta">{s.created_at ? new Date(s.created_at).toLocaleString() : "—"}</div>
                 {s.reviewer_name && <div className="lt-request-meta">Reviewed by {s.reviewer_name}</div>}
                 {s.review_note && <div className="lt-request-meta">Note: {s.review_note}</div>}
               </td>
-              <td>{s.notes || "â€”"}</td>
+              <td>{s.notes || "—"}</td>
               <td>
                 <div className="lt-action-stack">
                   {s.status === "pending" && <button className="lt-btn lt-btn-accent lt-btn-sm" onClick={() => onReview(s, "approved")}><UserCheck size={13} /> Approve</button>}
@@ -882,7 +882,7 @@ function UserActivityTable({ rows }) {
           {rows.map((row) => (
             <tr key={row.user_id}>
               <td><strong>{row.full_name || "Unnamed user"}</strong><div className="lt-request-meta">{row.email || "No email"}</div></td>
-              <td>{row.dept || "â€”"}</td>
+              <td>{row.dept || "—"}</td>
               <td className="lt-mono">{row.request_count || 0}</td>
               <td className="lt-mono">{row.usage_count || 0}</td>
               <td className="lt-mono">{row.borrow_count || 0}</td>
@@ -916,7 +916,7 @@ function OverdueBorrowsTable({ rows, onReturn }) {
               <td>{row.material_name}</td>
               <td>{row.borrower_name}</td>
               <td className="lt-mono">{displayQty(Number(row.qty_borrowed || 0) - Number(row.qty_returned || 0))} {row.unit}</td>
-              <td>{row.purpose || "â€”"}</td>
+              <td>{row.purpose || "—"}</td>
               <td className="lt-mono" style={{ fontSize: 12 }}>{fmtTime(row.borrowed_at)}</td>
               <td className="lt-mono" style={{ fontSize: 12 }}>{row.due_at ? fmtDate(row.due_at) : "No due date"}</td>
               <td><button className="lt-btn lt-btn-ghost lt-btn-sm" onClick={() => onReturn(row)}><RotateCcw size={13} /> Return</button></td>
@@ -952,7 +952,7 @@ function MaintenanceTable({ rows, onMaintenance = null, actionLabel = "Update" }
                 <td>{row.condition || "Good"}</td>
                 <td className="lt-mono" style={{ fontSize: 12 }}>{row.last_maintenance_at ? fmtDate(row.last_maintenance_at) : "Not set"}</td>
                 <td className="lt-mono" style={{ fontSize: 12 }}>{row.maintenance_due_at ? fmtDate(row.maintenance_due_at) : "Not set"}</td>
-                <td>{row.maintenance_note || "â€”"}</td>
+                <td>{row.maintenance_note || "—"}</td>
                 {onMaintenance && (
                   <td><button className="lt-btn lt-btn-accent lt-btn-sm" onClick={() => onMaintenance(row)}><CalendarClock size={13} /> {actionLabel}</button></td>
                 )}
@@ -986,12 +986,12 @@ function MaintenanceRequestsTable({ rows, isAdmin = false, onApprove = null, onR
               {isAdmin && <td>{request.dept}</td>}
               <td><strong>{request.material_name}</strong><div className="lt-request-meta">Requested by {request.requester_name || "Unknown user"}</div></td>
               <td>{request.maintenance_type || "Maintenance"}</td>
-              <td className="lt-mono" style={{ fontSize: 12 }}>{request.created_at ? fmtTime(request.created_at) : "â€”"}<div className="lt-request-meta">Service: {request.maintenance_date ? fmtDate(request.maintenance_date) : "Not set"}</div></td>
+              <td className="lt-mono" style={{ fontSize: 12 }}>{request.created_at ? fmtTime(request.created_at) : "—"}<div className="lt-request-meta">Service: {request.maintenance_date ? fmtDate(request.maintenance_date) : "Not set"}</div></td>
               <td className="lt-mono" style={{ fontSize: 12 }}>{request.next_due_at ? fmtDate(request.next_due_at) : "Not set"}</td>
               <td>{request.condition || "Needs inspection"}</td>
               <td>{request.service_provider || "Not set"}<div className="lt-request-meta">{request.technician || "No technician assigned"}</div></td>
-              <td className="lt-mono">â‚±{displayQty(request.cost || 0)}</td>
-              <td>{request.notes || "â€”"}{request.admin_note && <div className="lt-request-meta"><strong>Admin:</strong> {request.admin_note}{request.reviewer_name ? ` Â· ${request.reviewer_name}` : ""}</div>}</td>
+              <td className="lt-mono">₱{displayQty(request.cost || 0)}</td>
+              <td>{request.notes || "—"}{request.admin_note && <div className="lt-request-meta"><strong>Admin:</strong> {request.admin_note}{request.reviewer_name ? ` · ${request.reviewer_name}` : ""}</div>}</td>
               {isAdmin && (
                 <td>
                   {request.status === "pending" ? (
@@ -1122,7 +1122,7 @@ function AccountGate({ profile, onLogout }) {
           <div className="lt-brand-mark"><UserCheck size={18} /></div>
           <div>
             <div className="lt-brand-name">{isRejected ? "Account not approved" : "Waiting for admin approval"}</div>
-            <div className="lt-brand-sub">{profile?.full_name || "Your account"} Â· {profile?.dept || "No department selected"}</div>
+            <div className="lt-brand-sub">{profile?.full_name || "Your account"} · {profile?.dept || "No department selected"}</div>
           </div>
         </div>
         <div className={isRejected ? "lt-error-box" : "lt-note"}>
@@ -1133,7 +1133,7 @@ function AccountGate({ profile, onLogout }) {
             <div style={{ marginTop: 10 }}><strong>Admin note:</strong> {profile.admin_note}</div>
           )}
           {profile?.reviewer_name && (
-            <div style={{ marginTop: 6 }}><strong>Reviewed by:</strong> {profile.reviewer_name} Â· {fmtTime(profile.reviewed_at)}</div>
+            <div style={{ marginTop: 6 }}><strong>Reviewed by:</strong> {profile.reviewer_name} · {fmtTime(profile.reviewed_at)}</div>
           )}
         </div>
         <button className="lt-btn lt-btn-primary" style={{ marginTop: 16 }} onClick={onLogout}>Back to login</button>
@@ -1817,7 +1817,7 @@ export default function App() {
           setAppMessage(`New support message from ${source}: ${String(message.text || "").slice(0, 90)}`);
 
           if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-            const notice = new Notification(`LabTrack support Â· ${source}`, {
+            const notice = new Notification(`LabTrack support · ${source}`, {
               body: String(message.text || "New support message"),
               tag: `labtrack-chat-${message.dept}`,
             });
@@ -1978,7 +1978,7 @@ export default function App() {
     { key: "maintenance", label: "Maintenance", icon: CalendarClock, badge: pendingMaintenanceRequestsTotal },
     { key: "history", label: "History", icon: HistoryIcon },
     ...(userDept === VIPM_DEPARTMENT
-      ? [{ key: "cultureLogs", label: "Fungi & Bacteria", icon: Beaker, badge: cultureSummary.ready }]
+      ? [{ key: "cultureLogs", label: "Growth Logs", icon: Beaker, badge: cultureSummary.ready }]
       : []),
     { key: "support", label: "Support", icon: MessageCircle, badge: totalUnreadChats },
   ];
@@ -1988,7 +1988,7 @@ export default function App() {
     { key: "approvals", label: "Materials", icon: AlertTriangle, badge: pendingRequestsTotal },
     { key: "accounts", label: "Accounts", icon: UserCheck, badge: pendingAccountsTotal },
     { key: "departments", label: "Inventory", icon: Building2 },
-    { key: "cultureLogs", label: "Fungi & Bacteria", icon: Beaker, badge: cultureSummary.ready },
+    { key: "cultureLogs", label: "Growth Logs", icon: Beaker, badge: cultureSummary.ready },
     { key: "forecast", label: "Forecast", icon: TrendingUp, badge: forecastRows.filter((row) => ["expired", "critical", "low", "high_usage", "expiring"].includes(String(row.priority).toLowerCase())).length },
     { key: "restockOrders", label: "Restock", icon: Truck, badge: openRestockCount },
     { key: "suppliers", label: "Suppliers", icon: DollarSign, badge: pendingSuppliersTotal },
@@ -2188,6 +2188,7 @@ export default function App() {
     }
     if (mode === "culture") setCultureForm({
       organism_type: "fungi",
+      specimen_type: "",
       culture_name: "",
       strain: "",
       stored_at: new Date().toISOString().slice(0, 10),
@@ -2291,7 +2292,11 @@ export default function App() {
     setBusy(true);
     setFormError("");
 
-    const { data: created, error: createError } = await supabase.from("materials").insert({
+    let created;
+    let createError;
+
+    try {
+      const result = await supabase.from("materials").insert({
       dept,
       name: name.trim(),
       category: category.trim() || "Uncategorized",
@@ -2320,7 +2325,12 @@ export default function App() {
       approved_at: now,
       updated: now,
       created_at: now,
-    });
+      });
+      created = result.data;
+      createError = result.error;
+    } catch (error) {
+      createError = error;
+    }
 
     if (createError) {
       setBusy(false);
@@ -2335,7 +2345,7 @@ export default function App() {
       material_name: name.trim(),
       type: "admin_add",
       qty: Number(qty),
-      detail: `${purpose.trim() || "Added directly by administrator"} Â· MR: ${material_responsible.trim()}`,
+      detail: `${purpose.trim() || "Added directly by administrator"} · MR: ${material_responsible.trim()}`,
       user_id: session.user.id,
       user_name: displayName,
       timestamp: now,
@@ -2760,7 +2770,7 @@ export default function App() {
         material_name: supplier.material_name || supplier.material_category || supplier.name,
         type: "supplier",
         qty: 0,
-        detail: `${status === "approved" ? "Approved" : "Rejected"} supplier ${supplier.name}${review_note ? ` Â· ${review_note}` : ""}`,
+        detail: `${status === "approved" ? "Approved" : "Rejected"} supplier ${supplier.name}${review_note ? ` · ${review_note}` : ""}`,
         user_id: session.user.id,
         user_name: displayName,
       });
@@ -2991,7 +3001,7 @@ export default function App() {
       ? cultureForm.organism_type
       : "other";
     const specimenType = organismType === "other"
-      ? cultureForm.specimen_type.trim()
+      ? String(cultureForm.specimen_type || "").trim()
       : organismType === "bacteria"
         ? "Bacteria"
         : "Fungi";
@@ -3096,7 +3106,7 @@ export default function App() {
       h1{font-size:22px;margin:0 0 4px;} .meta{color:#5B6B66;font-size:12px;margin-bottom:18px;}
       table{border-collapse:collapse;width:100%;font-size:12px;} th,td{border:1px solid #D9DED4;padding:7px;text-align:left;vertical-align:top;} th{background:#F6F7F3;text-transform:uppercase;font-size:10px;}
       @media print{button{display:none;} body{margin:12mm;}}
-    </style></head><body><button onclick="window.print()" style="margin-bottom:12px;padding:8px 12px">Print / Save PDF</button><h1>${htmlEscape(title)}</h1><div class="meta">Generated ${new Date().toLocaleString()} Â· Department: ${htmlEscape(reportDeptFilter)}</div><table><thead><tr>${tableHead}</tr></thead><tbody>${tableRows}</tbody></table></body></html>`);
+    </style></head><body><button onclick="window.print()" style="margin-bottom:12px;padding:8px 12px">Print / Save PDF</button><h1>${htmlEscape(title)}</h1><div class="meta">Generated ${new Date().toLocaleString()} · Department: ${htmlEscape(reportDeptFilter)}</div><table><thead><tr>${tableHead}</tr></thead><tbody>${tableRows}</tbody></table></body></html>`);
     win.document.close();
     win.focus();
   }
@@ -3924,7 +3934,7 @@ export default function App() {
       {!isSupabaseConfigured && <SetupNotice />}
 
       {isSupabaseConfigured && loading && (
-        <div className="lt-login-wrap"><div className="lt-login-card"><div className="lt-empty">Loading LabTrackâ€¦</div></div></div>
+        <div className="lt-login-wrap"><div className="lt-login-card"><div className="lt-empty">Loading LabTrack…</div></div></div>
       )}
 
       {isSupabaseConfigured && !loading && !session && (
@@ -3981,7 +3991,7 @@ export default function App() {
             {appMessage && <div className="lt-success">{appMessage}</div>}
             {formError && <div className="lt-error">{formError}</div>}
             <button className="lt-btn lt-btn-primary" disabled={busy}>
-              {busy ? "Please waitâ€¦" : authMode === "signup" ? "Create account" : "Log in"}
+              {busy ? "Please wait…" : authMode === "signup" ? "Create account" : "Log in"}
             </button>
 
 
@@ -4035,7 +4045,7 @@ export default function App() {
             <div className="lt-sidebar-foot">
               <div className="lt-user-chip">
                 <strong>{displayName}</strong>
-                {isAdmin ? "Administrator Â· all departments" : userDept}
+                {isAdmin ? "Administrator · all departments" : userDept}
               </div>
               <button className="lt-logout" onClick={handleLogout}><LogOut size={13} /> Log out</button>
             </div>
@@ -4061,7 +4071,7 @@ export default function App() {
                 <div className="lt-header">
                   <div>
                     <div className="lt-h1">{userDept}</div>
-                    <div className="lt-h1-sub">{deptMaterials.length} approved materials Â· {lowInDept} need attention</div>
+                    <div className="lt-h1-sub">{deptMaterials.length} approved materials · {lowInDept} need attention</div>
                   </div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <button className="lt-btn lt-btn-ghost" onClick={exportMaterialsCsv}><Download size={14} /> Export</button>
@@ -4120,13 +4130,13 @@ export default function App() {
                       <div className="lt-request-head">
                         <div>
                           <div className="lt-request-title">{request.name}</div>
-                          <div className="lt-request-meta">{request.category} Â· {materialTypeLabel(request.material_type)} Â· {displayQty(request.qty)} {request.unit} Â· threshold {displayQty(request.threshold)} Â· expires {request.expires_at ? fmtDate(request.expires_at) : "not set"} Â· {fmtTime(request.created_at)}<br /><strong>Purpose:</strong> {request.purpose || "â€”"}</div>
+                          <div className="lt-request-meta">{request.category} · {materialTypeLabel(request.material_type)} · {displayQty(request.qty)} {request.unit} · threshold {displayQty(request.threshold)} · expires {request.expires_at ? fmtDate(request.expires_at) : "not set"} · {fmtTime(request.created_at)}<br /><strong>Purpose:</strong> {request.purpose || "—"}</div>
                         </div>
                         <span className={`lt-tag lt-tag-${request.status}`}>{request.status}</span>
                       </div>
                       {request.status !== "pending" && (
                         <div className="lt-request-meta">
-                          <strong>{request.status === "approved" ? "Approved" : "Rejected"} by:</strong> {request.reviewer_name || "Admin"}{request.reviewed_at ? ` Â· ${fmtTime(request.reviewed_at)}` : ""}
+                          <strong>{request.status === "approved" ? "Approved" : "Rejected"} by:</strong> {request.reviewer_name || "Admin"}{request.reviewed_at ? ` · ${fmtTime(request.reviewed_at)}` : ""}
                         </div>
                       )}
                       {request.material_responsible && <div className="lt-request-meta"><strong>MR (Material Responsibility):</strong> {request.material_responsible}</div>}
@@ -4181,7 +4191,7 @@ export default function App() {
                 <div className="lt-header">
                   <div>
                     <div className="lt-h1">Support chat</div>
-                    <div className="lt-h1-sub">Talk to the admin team about {userDept} Â· unread messages appear as a badge</div>
+                    <div className="lt-h1-sub">Talk to the admin team about {userDept} · unread messages appear as a badge</div>
                   </div>
                   {browserNotificationPermission !== "granted" && browserNotificationPermission !== "unsupported" && (
                     <button className="lt-btn lt-btn-ghost" onClick={enableChatNotifications}><Bell size={14} /> Enable notifications</button>
@@ -4193,8 +4203,8 @@ export default function App() {
                   input={chatInput}
                   setInput={setChatInput}
                   onSend={sendChat}
-                  emptyText="No messages yet â€” send a note about supplies, delays, or safety concerns."
-                  placeholder="Write a message to adminâ€¦"
+                  emptyText="No messages yet — send a note about supplies, delays, or safety concerns."
+                  placeholder="Write a message to admin…"
                 />
               </>
             )}
@@ -4217,8 +4227,8 @@ export default function App() {
                   <div className="lt-stat-card"><div className="lt-stat-num">{dashboardSummary?.active_borrows ?? 0}</div><div className="lt-stat-label">Active borrows</div></div>
                   <div className="lt-stat-card"><div className="lt-stat-num" style={{ color: "var(--crit)" }}>{overdueBorrowCount}</div><div className="lt-stat-label">Overdue borrows</div></div>
                   <div className="lt-stat-card"><div className="lt-stat-num" style={{ color: maintenanceDueCount > 0 ? "var(--warn)" : undefined }}>{maintenanceDueCount}</div><div className="lt-stat-label">Maintenance due</div></div>
-                  <div className="lt-stat-card"><div className="lt-stat-num">â‚±{displayQty(dashboardSummary?.total_inventory_value ?? 0)}</div><div className="lt-stat-label">Inventory value</div></div>
-                  <div className="lt-stat-card"><div className="lt-stat-num">â‚±{displayQty(dashboardSummary?.monthly_usage_cost ?? 0)}</div><div className="lt-stat-label">Est. monthly usage cost</div></div>
+                  <div className="lt-stat-card"><div className="lt-stat-num">₱{displayQty(dashboardSummary?.total_inventory_value ?? 0)}</div><div className="lt-stat-label">Inventory value</div></div>
+                  <div className="lt-stat-card"><div className="lt-stat-num">₱{displayQty(dashboardSummary?.monthly_usage_cost ?? 0)}</div><div className="lt-stat-label">Est. monthly usage cost</div></div>
                   <div className="lt-stat-card"><div className="lt-stat-num">{dashboardSummary?.open_restock_requests ?? 0}</div><div className="lt-stat-label">Open restock requests</div></div>
                   <div className="lt-stat-card"><div className="lt-stat-num">{dashboardSummary?.supplier_count ?? 0}</div><div className="lt-stat-label">Suppliers</div></div>
                 </div>
@@ -4236,9 +4246,9 @@ export default function App() {
                     <div className="lt-attn-row" key={material.id}>
                       <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <StatusDot status={statusOf(material)} /> <strong>{material.name}</strong>
-                        <span style={{ color: "var(--ink-soft)" }}>Â· {material.dept} Â· {expiryLabel[expiryStatusOf(material)]}</span>
+                        <span style={{ color: "var(--ink-soft)" }}>· {material.dept} · {expiryLabel[expiryStatusOf(material)]}</span>
                       </span>
-                      <span className="lt-mono">{displayQty(material.qty)} {material.unit} <span style={{ color: "var(--ink-soft)" }}>/ {displayQty(material.threshold)} threshold Â· expires {material.expires_at ? fmtDate(material.expires_at) : "not set"}</span></span>
+                      <span className="lt-mono">{displayQty(material.qty)} {material.unit} <span style={{ color: "var(--ink-soft)" }}>/ {displayQty(material.threshold)} threshold · expires {material.expires_at ? fmtDate(material.expires_at) : "not set"}</span></span>
                     </div>
                   ))}
                 </div>
@@ -4280,16 +4290,16 @@ export default function App() {
                         <div>
                           <div className="lt-request-title">{request.name}</div>
                           <div className="lt-request-meta">
-                            {request.dept} Â· {request.category} Â· {materialTypeLabel(request.material_type)} Â· {displayQty(request.qty)} {request.unit} Â· threshold {displayQty(request.threshold)} Â· expires {request.expires_at ? fmtDate(request.expires_at) : "not set"}
-                            <br />Requested by {request.requester_name} Â· {fmtTime(request.created_at)}
-                            <br /><strong>Purpose:</strong> {request.purpose || "â€”"}
+                            {request.dept} · {request.category} · {materialTypeLabel(request.material_type)} · {displayQty(request.qty)} {request.unit} · threshold {displayQty(request.threshold)} · expires {request.expires_at ? fmtDate(request.expires_at) : "not set"}
+                            <br />Requested by {request.requester_name} · {fmtTime(request.created_at)}
+                            <br /><strong>Purpose:</strong> {request.purpose || "—"}
                           </div>
                         </div>
                         <span className={`lt-tag lt-tag-${request.status}`}>{request.status}</span>
                       </div>
                       {request.status !== "pending" && (
                         <div className="lt-request-meta">
-                          <strong>{request.status === "approved" ? "Approved" : "Rejected"} by:</strong> {request.reviewer_name || "Admin"}{request.reviewed_at ? ` Â· ${fmtTime(request.reviewed_at)}` : ""}
+                          <strong>{request.status === "approved" ? "Approved" : "Rejected"} by:</strong> {request.reviewer_name || "Admin"}{request.reviewed_at ? ` · ${fmtTime(request.reviewed_at)}` : ""}
                         </div>
                       )}
                       {request.material_responsible && <div className="lt-request-meta"><strong>MR (Material Responsibility):</strong> {request.material_responsible}</div>}
@@ -4336,8 +4346,8 @@ export default function App() {
                         <div>
                           <div className="lt-request-title">{account.full_name || "Unnamed account"}</div>
                           <div className="lt-request-meta">
-                            {account.email ? `${account.email} Â· ` : ""}{account.dept || "No department"} Â· created {fmtTime(account.created_at)}
-                            {account.reviewer_name && <><br />Reviewed by {account.reviewer_name} Â· {fmtTime(account.reviewed_at)}</>}
+                            {account.email ? `${account.email} · ` : ""}{account.dept || "No department"} · created {fmtTime(account.created_at)}
+                            {account.reviewer_name && <><br />Reviewed by {account.reviewer_name} · {fmtTime(account.reviewed_at)}</>}
                           </div>
                         </div>
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -4437,7 +4447,7 @@ export default function App() {
                 </div>
                 <div className="lt-note" style={{ marginBottom: 12 }}>
                   Suggested buy quantity uses average weekly usage from logs, current stock, reorder threshold, and expiry status.
-                  It is a guide only â€” still verify lab schedules before purchasing.
+                  It is a guide only — still verify lab schedules before purchasing.
                 </div>
                 <ForecastTable rows={filteredForecastRows} onCreateRestock={createRestockFromForecast} />
               </>
@@ -4747,7 +4757,7 @@ export default function App() {
                 <div className="lt-header">
                   <div>
                     <div className="lt-h1">Support inbox</div>
-                    <div className="lt-h1-sub">Conversations from every department Â· {totalUnreadChats} unread</div>
+                    <div className="lt-h1-sub">Conversations from every department · {totalUnreadChats} unread</div>
                   </div>
                   {browserNotificationPermission !== "granted" && browserNotificationPermission !== "unsupported" && (
                     <button className="lt-btn lt-btn-ghost" onClick={enableChatNotifications}><Bell size={14} /> Enable notifications</button>
@@ -4776,7 +4786,7 @@ export default function App() {
                       setInput={setChatInput}
                       onSend={sendChat}
                       emptyText="No messages from this department yet."
-                      placeholder={`Reply to ${adminActiveDept}â€¦`}
+                      placeholder={`Reply to ${adminActiveDept}…`}
                     />
                   </div>
                 </div>
@@ -4787,7 +4797,7 @@ export default function App() {
       )}
 
       {modalMode === "materialDetails" && activeMaterial && (
-        <Modal title={`Material details â€” ${activeMaterial.name}`} onClose={closeModal} wide>
+        <Modal title={`Material details — ${activeMaterial.name}`} onClose={closeModal} wide>
           <MaterialDetails material={activeMaterial} />
           <div className="lt-material-details-actions">
             <button className="lt-btn lt-btn-accent" onClick={() => openModal("use", activeMaterial)}>
@@ -4885,7 +4895,7 @@ export default function App() {
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           <button className="lt-btn lt-btn-accent" style={{ width: "100%", padding: "11px 16px" }} disabled={busy} onClick={submitCultureLog}>
-            {busy ? "Savingâ€¦" : "Save growth log"}
+            {busy ? "Saving…" : "Save growth log"}
           </button>
         </Modal>
       )}
@@ -4921,7 +4931,7 @@ export default function App() {
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           <button className="lt-btn lt-btn-danger" style={{ width: "100%", padding: "11px 16px" }} disabled={busy} onClick={clearSelectedActivity}>
-            {busy ? "Clearingâ€¦" : "Clear selected records"}
+            {busy ? "Clearing…" : "Clear selected records"}
           </button>
         </Modal>
       )}
@@ -4957,12 +4967,12 @@ export default function App() {
           </div>
           <div className="lt-field"><label className="lt-label">Notes</label><textarea className="lt-textarea" maxLength={5000} value={supplierForm.notes} onChange={(e) => setSupplierForm({ ...supplierForm, notes: e.target.value })} /></div>
           {formError && <div className="lt-error">{formError}</div>}
-          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitSupplier}>{busy ? "Sendingâ€¦" : "Submit for admin approval"}</button>
+          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitSupplier}>{busy ? "Sending…" : "Submit for admin approval"}</button>
         </Modal>
       )}
 
       {modalMode === "transfer" && activeMaterial && (
-        <Modal title={`Transfer stock â€” ${activeMaterial.name}`} onClose={closeModal}>
+        <Modal title={`Transfer stock — ${activeMaterial.name}`} onClose={closeModal}>
           <div className="lt-modal-hint">From {activeMaterial.dept}. Current stock: {displayQty(activeMaterial.qty)} {activeMaterial.unit}.</div>
           <div className="lt-field">
             <label className="lt-label">Receiving department</label>
@@ -4979,7 +4989,7 @@ export default function App() {
             <textarea className="lt-textarea" maxLength={5000} value={transferForm.reason} onChange={(e) => setTransferForm({ ...transferForm, reason: e.target.value })} placeholder="Why is this stock being transferred?" />
           </div>
           {formError && <div className="lt-error">{formError}</div>}
-          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitTransfer}>{busy ? "Transferringâ€¦" : "Transfer material"}</button>
+          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitTransfer}>{busy ? "Transferring…" : "Transfer material"}</button>
         </Modal>
       )}
 
@@ -5003,7 +5013,7 @@ export default function App() {
             <input className="lt-input" maxLength={255} value={requestForm.name} onChange={(e) => setRequestForm({ ...requestForm, name: e.target.value })} placeholder="e.g. Acetone" />
           </div>
           <div className="lt-field">
-            <label className="lt-label">MR â€” Material Responsibility</label>
+            <label className="lt-label">MR — Material Responsibility</label>
             <input
               className="lt-input"
               maxLength={255}
@@ -5049,7 +5059,7 @@ export default function App() {
             </div>
             <div className="lt-field">
               <label className="lt-label">Unit</label>
-              <input className="lt-input" maxLength={80} value={requestForm.unit} onChange={(e) => setRequestForm({ ...requestForm, unit: e.target.value })} placeholder="mL, g, unitsâ€¦" />
+              <input className="lt-input" maxLength={80} value={requestForm.unit} onChange={(e) => setRequestForm({ ...requestForm, unit: e.target.value })} placeholder="mL, g, units…" />
             </div>
           </div>
           <div className="lt-field">
@@ -5063,7 +5073,7 @@ export default function App() {
           <div className="lt-form-row">
             <div className="lt-field">
               <label className="lt-label">Estimated price per unit</label>
-              <input className="lt-input" type="number" min="0" step="0.01" value={requestForm.price_per_unit} onChange={(e) => setRequestForm({ ...requestForm, price_per_unit: e.target.value })} placeholder="â‚±0.00" />
+              <input className="lt-input" type="number" min="0" step="0.01" value={requestForm.price_per_unit} onChange={(e) => setRequestForm({ ...requestForm, price_per_unit: e.target.value })} placeholder="₱0.00" />
             </div>
             <div className="lt-field">
               <label className="lt-label">Supplier name</label>
@@ -5149,14 +5159,14 @@ export default function App() {
             onClick={modalMode === "adminAddMaterial" ? submitAdminMaterial : submitItemRequest}
           >
             {busy
-              ? (modalMode === "adminAddMaterial" ? "Addingâ€¦" : "Sendingâ€¦")
+              ? (modalMode === "adminAddMaterial" ? "Adding…" : "Sending…")
               : (modalMode === "adminAddMaterial" ? "Add directly to inventory" : "Submit for approval")}
           </button>
         </Modal>
       )}
 
       {modalMode === "use" && activeMaterial && (
-        <Modal title={`Log usage â€” ${activeMaterial.name}`} onClose={closeModal}>
+        <Modal title={`Log usage — ${activeMaterial.name}`} onClose={closeModal}>
           <div className="lt-modal-hint">Currently {displayQty(activeMaterial.qty)} {activeMaterial.unit} in stock.</div>
           <div className="lt-field">
             <label className="lt-label">Quantity used ({activeMaterial.unit})</label>
@@ -5167,12 +5177,12 @@ export default function App() {
             <textarea className="lt-textarea" maxLength={5000} value={useForm.purpose} onChange={(e) => setUseForm({ ...useForm, purpose: e.target.value })} placeholder="What was it used for?" />
           </div>
           {formError && <div className="lt-error">{formError}</div>}
-          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitUse}>{busy ? "Savingâ€¦" : "Log usage"}</button>
+          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitUse}>{busy ? "Saving…" : "Log usage"}</button>
         </Modal>
       )}
 
       {modalMode === "borrow" && activeMaterial && (
-        <Modal title={`Borrow â€” ${activeMaterial.name}`} onClose={closeModal}>
+        <Modal title={`Borrow — ${activeMaterial.name}`} onClose={closeModal}>
           <div className="lt-modal-hint">Currently {displayQty(activeMaterial.qty)} {activeMaterial.unit} in stock.</div>
           <div className="lt-field">
             <label className="lt-label">Quantity to borrow ({activeMaterial.unit})</label>
@@ -5187,12 +5197,12 @@ export default function App() {
             <textarea className="lt-textarea" maxLength={5000} value={borrowForm.purpose} onChange={(e) => setBorrowForm({ ...borrowForm, purpose: e.target.value })} placeholder="What experiment or activity needs this borrowed material?" />
           </div>
           {formError && <div className="lt-error">{formError}</div>}
-          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitBorrow}>{busy ? "Savingâ€¦" : "Borrow material"}</button>
+          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitBorrow}>{busy ? "Saving…" : "Borrow material"}</button>
         </Modal>
       )}
 
       {modalMode === "return" && activeBorrow && (
-        <Modal title={`Return â€” ${activeBorrow.material_name}`} onClose={closeModal}>
+        <Modal title={`Return — ${activeBorrow.material_name}`} onClose={closeModal}>
           <div className="lt-modal-hint">Remaining borrowed quantity: {displayQty(Number(activeBorrow.qty_borrowed || 0) - Number(activeBorrow.qty_returned || 0))} {activeBorrow.unit}</div>
           <div className="lt-field">
             <label className="lt-label">Quantity returned ({activeBorrow.unit})</label>
@@ -5203,12 +5213,12 @@ export default function App() {
             <textarea className="lt-textarea" maxLength={5000} value={returnForm.note} onChange={(e) => setReturnForm({ ...returnForm, note: e.target.value })} placeholder="Optional condition or note" />
           </div>
           {formError && <div className="lt-error">{formError}</div>}
-          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitReturn}>{busy ? "Savingâ€¦" : "Return material"}</button>
+          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitReturn}>{busy ? "Saving…" : "Return material"}</button>
         </Modal>
       )}
 
       {modalMode === "correct" && activeMaterial && (
-        <Modal title={`Correct count â€” ${activeMaterial.name}`} onClose={closeModal}>
+        <Modal title={`Correct count — ${activeMaterial.name}`} onClose={closeModal}>
           <div className="lt-modal-hint">Recorded quantity is {displayQty(activeMaterial.qty)} {activeMaterial.unit}.</div>
           <div className="lt-field">
             <label className="lt-label">Actual quantity ({activeMaterial.unit})</label>
@@ -5216,10 +5226,10 @@ export default function App() {
           </div>
           <div className="lt-field">
             <label className="lt-label">Reason for correction</label>
-            <textarea className="lt-textarea" maxLength={5000} value={correctForm.reason} onChange={(e) => setCorrectForm({ ...correctForm, reason: e.target.value })} placeholder="e.g. Recount after audit, mislabeled boxâ€¦" />
+            <textarea className="lt-textarea" maxLength={5000} value={correctForm.reason} onChange={(e) => setCorrectForm({ ...correctForm, reason: e.target.value })} placeholder="e.g. Recount after audit, mislabeled box…" />
           </div>
           {formError && <div className="lt-error">{formError}</div>}
-          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitCorrect}>{busy ? "Savingâ€¦" : "Save correction"}</button>
+          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitCorrect}>{busy ? "Saving…" : "Save correction"}</button>
         </Modal>
       )}
 
@@ -5227,11 +5237,11 @@ export default function App() {
         <Modal title={`${modalMode === "approve" ? "Approve" : "Reject"} item request`} onClose={closeModal}>
           <div className="lt-modal-hint">
             <strong>{activeRequest.name}</strong><br />
-            {activeRequest.dept} Â· {displayQty(activeRequest.qty)} {activeRequest.unit} Â· requested by {activeRequest.requester_name}
+            {activeRequest.dept} · {displayQty(activeRequest.qty)} {activeRequest.unit} · requested by {activeRequest.requester_name}
           </div>
           {modalMode === "approve" && (
             <div className="lt-field">
-              <label className="lt-label">MR â€” Material Responsibility</label>
+              <label className="lt-label">MR — Material Responsibility</label>
               <input className="lt-input" maxLength={255} value={materialResponsible} onChange={(e) => setMaterialResponsible(e.target.value)} placeholder="Full name of the person assigned material responsibility" />
               <div className="lt-field-help">Assign the person who holds responsibility for receiving, safekeeping, monitoring, and coordinating this material.</div>
             </div>
@@ -5242,9 +5252,9 @@ export default function App() {
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           {modalMode === "approve" ? (
-            <button className="lt-btn lt-btn-primary" disabled={busy} onClick={() => approveRequest(activeRequest)}>{busy ? "Approvingâ€¦" : "Approve and add to stocks"}</button>
+            <button className="lt-btn lt-btn-primary" disabled={busy} onClick={() => approveRequest(activeRequest)}>{busy ? "Approving…" : "Approve and add to stocks"}</button>
           ) : (
-            <button className="lt-btn lt-btn-danger" style={{ width: "100%", padding: "11px 16px" }} disabled={busy} onClick={() => rejectRequest(activeRequest)}>{busy ? "Rejectingâ€¦" : "Reject request"}</button>
+            <button className="lt-btn lt-btn-danger" style={{ width: "100%", padding: "11px 16px" }} disabled={busy} onClick={() => rejectRequest(activeRequest)}>{busy ? "Rejecting…" : "Reject request"}</button>
           )}
         </Modal>
       )}
@@ -5272,7 +5282,7 @@ export default function App() {
               }}
             >
               <option value="">Select equipment</option>
-              {maintenanceRows.map((row) => <option key={row.id} value={row.id}>{row.name} â€” {row.dept}</option>)}
+              {maintenanceRows.map((row) => <option key={row.id} value={row.id}>{row.name} — {row.dept}</option>)}
             </select>
           </div>
           <div className="lt-form-row">
@@ -5307,7 +5317,7 @@ export default function App() {
           </div>
           <div className="lt-field">
             <label className="lt-label">Estimated / actual cost <span className="lt-optional">(optional)</span></label>
-            <input className="lt-input" type="number" min="0" step="0.01" value={maintenanceRequestForm.cost} onChange={(e) => setMaintenanceRequestForm({ ...maintenanceRequestForm, cost: e.target.value })} placeholder="â‚±0.00" />
+            <input className="lt-input" type="number" min="0" step="0.01" value={maintenanceRequestForm.cost} onChange={(e) => setMaintenanceRequestForm({ ...maintenanceRequestForm, cost: e.target.value })} placeholder="₱0.00" />
           </div>
           <div className="lt-field">
             <label className="lt-label">Maintenance notes <span className="lt-optional">(optional)</span></label>
@@ -5315,7 +5325,7 @@ export default function App() {
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           <button className="lt-btn lt-btn-primary" disabled={busy} onClick={() => submitMaintenanceRequest(modalMode === "maintenanceAdmin")}>
-            {busy ? "Savingâ€¦" : modalMode === "maintenanceAdmin" ? "Add maintenance record" : "Submit for admin approval"}
+            {busy ? "Saving…" : modalMode === "maintenanceAdmin" ? "Add maintenance record" : "Submit for admin approval"}
           </button>
         </Modal>
       )}
@@ -5324,7 +5334,7 @@ export default function App() {
         <Modal title={`${modalMode === "approveMaintenance" ? "Approve" : "Reject"} maintenance request`} onClose={closeModal}>
           <div className="lt-modal-hint">
             <strong>{activeMaintenanceRequest.material_name}</strong><br />
-            {activeMaintenanceRequest.dept} Â· {activeMaintenanceRequest.maintenance_type || "Maintenance"} Â· requested by {activeMaintenanceRequest.requester_name || "Unknown user"}
+            {activeMaintenanceRequest.dept} · {activeMaintenanceRequest.maintenance_type || "Maintenance"} · requested by {activeMaintenanceRequest.requester_name || "Unknown user"}
             <br />Maintenance date: {activeMaintenanceRequest.maintenance_date ? fmtDate(activeMaintenanceRequest.maintenance_date) : "Not set"}
           </div>
           <div className="lt-field">
@@ -5333,15 +5343,15 @@ export default function App() {
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           {modalMode === "approveMaintenance" ? (
-            <button className="lt-btn lt-btn-primary" disabled={busy} onClick={() => approveMaintenanceRequest(activeMaintenanceRequest)}>{busy ? "Approvingâ€¦" : "Approve and update equipment"}</button>
+            <button className="lt-btn lt-btn-primary" disabled={busy} onClick={() => approveMaintenanceRequest(activeMaintenanceRequest)}>{busy ? "Approving…" : "Approve and update equipment"}</button>
           ) : (
-            <button className="lt-btn lt-btn-danger" style={{ width: "100%", padding: "11px 16px" }} disabled={busy} onClick={() => rejectMaintenanceRequest(activeMaintenanceRequest)}>{busy ? "Rejectingâ€¦" : "Reject maintenance request"}</button>
+            <button className="lt-btn lt-btn-danger" style={{ width: "100%", padding: "11px 16px" }} disabled={busy} onClick={() => rejectMaintenanceRequest(activeMaintenanceRequest)}>{busy ? "Rejecting…" : "Reject maintenance request"}</button>
           )}
         </Modal>
       )}
 
       {modalMode === "maintenance" && activeMaterial && (
-        <Modal title={`Maintenance â€” ${activeMaterial.name}`} onClose={closeModal}>
+        <Modal title={`Maintenance — ${activeMaterial.name}`} onClose={closeModal}>
           <div className="lt-modal-hint">Update equipment/material condition and maintenance schedule.</div>
           <div className="lt-field">
             <label className="lt-label">Condition</label>
@@ -5362,7 +5372,7 @@ export default function App() {
             <textarea className="lt-textarea" maxLength={1000} value={maintenanceForm.maintenance_note} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, maintenance_note: e.target.value })} placeholder="Cleaning, calibration, repair notes..." />
           </div>
           {formError && <div className="lt-error">{formError}</div>}
-          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitMaintenance}>{busy ? "Savingâ€¦" : "Save maintenance"}</button>
+          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitMaintenance}>{busy ? "Saving…" : "Save maintenance"}</button>
         </Modal>
       )}
 
@@ -5377,7 +5387,7 @@ export default function App() {
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           <button className="lt-btn lt-btn-danger" style={{ width: "100%", padding: "11px 16px" }} disabled={busy} onClick={() => deleteMaterial(activeMaterial)}>
-            {busy ? "Deletingâ€¦" : "Delete material"}
+            {busy ? "Deleting…" : "Delete material"}
           </button>
         </Modal>
       )}
@@ -5389,11 +5399,11 @@ export default function App() {
             This action cannot be undone.
           </div>
           <div className="lt-modal-hint" style={{ margin: "14px 0" }}>
-            {activeLog.type} Â· {displayQty(activeLog.qty)} Â· {activeLog.detail || "No note"}
+            {activeLog.type} · {displayQty(activeLog.qty)} · {activeLog.detail || "No note"}
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           <button className="lt-btn lt-btn-danger" style={{ width: "100%", padding: "11px 16px" }} disabled={busy} onClick={() => deleteLog(activeLog)}>
-            {busy ? "Deletingâ€¦" : "Delete log permanently"}
+            {busy ? "Deleting…" : "Delete log permanently"}
           </button>
         </Modal>
       )}
@@ -5409,7 +5419,7 @@ export default function App() {
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           <button className="lt-btn lt-btn-danger" style={{ width: "100%", padding: "11px 16px" }} disabled={busy} onClick={() => deleteAccount(activeAccount)}>
-            {busy ? "Deletingâ€¦" : "Delete account"}
+            {busy ? "Deleting…" : "Delete account"}
           </button>
         </Modal>
       )}
