@@ -181,6 +181,7 @@
     "strings": [
       "dept:255",
       "organism_type:40",
+      "specimen_type:255",
       "culture_name:255",
       "strain:255",
       "stored_at:80",

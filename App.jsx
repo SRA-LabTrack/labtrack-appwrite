@@ -124,7 +124,27 @@ const CULTURE_FETCH_LIMIT = 100;
 const CULTURE_TYPES = [
   { value: "fungi", label: "Fungi" },
   { value: "bacteria", label: "Bacteria" },
+  { value: "other", label: "Other specimen" },
 ];
+function cultureSpecimenLabel(culture) {
+  const manualType = String(culture?.specimen_type || "").trim();
+  if (manualType) return manualType;
+  if (culture?.organism_type === "bacteria") return "Bacteria";
+  if (culture?.organism_type === "fungi") return "Fungi";
+  return "Other specimen";
+}
+
+function friendlyWriteError(error, recordLabel) {
+  const message = String(error?.message || error || "Unknown Appwrite error.");
+  if (/attribute.+not found|unknown attribute|invalid document structure|collection.+not found|table.+not found/i.test(message)) {
+    return `${recordLabel} could not be saved because the Appwrite schema is outdated or incomplete. Run the included Appwrite schema repair, then try again. Technical message: ${message}`;
+  }
+  if (/permission|unauthorized|not authorized|forbidden|not allowed/i.test(message)) {
+    return `${recordLabel} could not be saved because the Appwrite collection does not allow this signed-in account to create records. Run the included Appwrite schema and permission repair. Technical message: ${message}`;
+  }
+  return message;
+}
+
 const CULTURE_STATUS_OPTIONS = [
   { value: "incubating", label: "Incubating" },
   { value: "ready", label: "Ready" },
@@ -995,7 +1015,7 @@ function CultureLogGrid({ rows, onStatus, onDelete }) {
   if (!rows.length) {
     return (
       <div className="lt-table-wrap">
-        <div className="lt-empty">No fungi or bacteria growth logs match this filter.</div>
+        <div className="lt-empty">No specimen growth logs match this filter.</div>
       </div>
     );
   }
@@ -1009,7 +1029,7 @@ function CultureLogGrid({ rows, onStatus, onDelete }) {
           <article className={`lt-culture-card lt-culture-${status}`} key={culture.id}>
             <div className="lt-culture-card-head">
               <div>
-                <div className="lt-card-eyebrow">{culture.organism_type === "bacteria" ? "Bacteria culture" : "Fungi culture"}</div>
+                <div className="lt-card-eyebrow">{cultureSpecimenLabel(culture)} growth record</div>
                 <div className="lt-culture-name">{culture.culture_name}</div>
                 <div className="lt-request-meta">{culture.strain || "Strain / isolate not specified"}</div>
               </div>
@@ -1210,6 +1230,7 @@ export default function App() {
   const [maintenanceRequestForm, setMaintenanceRequestForm] = useState(() => emptyMaintenanceRequestForm());
   const [cultureForm, setCultureForm] = useState({
     organism_type: "fungi",
+    specimen_type: "",
     culture_name: "",
     strain: "",
     stored_at: new Date().toISOString().slice(0, 10),
@@ -1909,7 +1930,7 @@ export default function App() {
         const matchesType = cultureTypeFilter === "All" || culture.organism_type === cultureTypeFilter;
         const status = cultureStatusOf(culture);
         const matchesStatus = cultureStatusFilter === "All" || status === cultureStatusFilter;
-        const haystack = `${culture.culture_name || ""} ${culture.strain || ""} ${culture.storage_location || ""} ${culture.notes || ""}`.toLowerCase();
+        const haystack = `${cultureSpecimenLabel(culture)} ${culture.culture_name || ""} ${culture.strain || ""} ${culture.storage_location || ""} ${culture.notes || ""}`.toLowerCase();
         return matchesType && matchesStatus && (!term || haystack.includes(term));
       })
       .sort((a, b) => {
@@ -1923,6 +1944,7 @@ export default function App() {
     total: cultureLogs.length,
     fungi: cultureLogs.filter((culture) => culture.organism_type === "fungi").length,
     bacteria: cultureLogs.filter((culture) => culture.organism_type === "bacteria").length,
+    other: cultureLogs.filter((culture) => !["fungi", "bacteria"].includes(culture.organism_type)).length,
     ready: cultureLogs.filter((culture) => cultureStatusOf(culture) === "ready").length,
   }), [cultureLogs]);
   const lowInDept = deptMaterials.filter((material) => statusOf(material) !== "ok" || ["expired", "expiring"].includes(expiryStatusOf(material))).length;
@@ -2302,7 +2324,7 @@ export default function App() {
 
     if (createError) {
       setBusy(false);
-      setFormError(createError.message);
+      setFormError(friendlyWriteError(createError, "Material"));
       return;
     }
 
@@ -2321,7 +2343,11 @@ export default function App() {
     setBusy(false);
 
     if (logError) {
-      setFormError(`Material was added, but the activity log could not be saved: ${logError.message}`);
+      closeModal();
+      setDeptTab(dept);
+      setTab("departments");
+      setAppMessage(`${name.trim()} was added successfully. The optional activity log could not be saved: ${logError.message}`);
+      loadData();
       return;
     }
 
@@ -2961,8 +2987,21 @@ export default function App() {
 
   async function submitCultureLog() {
     const cultureName = cultureForm.culture_name.trim();
+    const organismType = ["fungi", "bacteria"].includes(cultureForm.organism_type)
+      ? cultureForm.organism_type
+      : "other";
+    const specimenType = organismType === "other"
+      ? cultureForm.specimen_type.trim()
+      : organismType === "bacteria"
+        ? "Bacteria"
+        : "Fungi";
+
+    if (!specimenType) {
+      setFormError("Enter the specimen type you are growing.");
+      return;
+    }
     if (!cultureName) {
-      setFormError("Enter the fungi or bacteria culture name.");
+      setFormError("Enter the specimen or culture name.");
       return;
     }
     if (!cultureForm.stored_at || !cultureForm.ready_at) {
@@ -2979,7 +3018,8 @@ export default function App() {
     const now = new Date().toISOString();
     const { error } = await supabase.from("culture_logs").insert({
       dept: VIPM_DEPARTMENT,
-      organism_type: cultureForm.organism_type === "bacteria" ? "bacteria" : "fungi",
+      organism_type: organismType,
+      specimen_type: specimenType,
       culture_name: cultureName,
       strain: cultureForm.strain.trim() || null,
       stored_at: cultureForm.stored_at,
@@ -2995,11 +3035,11 @@ export default function App() {
     setBusy(false);
 
     if (error) {
-      setFormError(error.message);
+      setFormError(friendlyWriteError(error, "Growth log"));
       return;
     }
     closeModal();
-    setAppMessage(`${cultureForm.organism_type === "bacteria" ? "Bacteria" : "Fungi"} growth log added.`);
+    setAppMessage(`${specimenType} growth log added.`);
     loadData();
   }
 
@@ -4567,8 +4607,8 @@ export default function App() {
               <>
                 <div className="lt-header">
                   <div>
-                    <div className="lt-h1">VIPM fungi &amp; bacteria growth monitor</div>
-                    <div className="lt-h1-sub">Track stored cultures, expected readiness, location, progress, and contamination status</div>
+                    <div className="lt-h1">VIPM specimen growth monitor</div>
+                    <div className="lt-h1-sub">Track any stored specimen or culture, expected readiness, location, progress, and contamination status</div>
                   </div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <button
@@ -4576,7 +4616,8 @@ export default function App() {
                       onClick={() => downloadRows(
                         "vipm-culture-logs",
                         filteredCultureLogs.map((culture) => ({
-                          Type: culture.organism_type,
+                          Type: cultureSpecimenLabel(culture),
+                          Category: culture.organism_type,
                           Culture: culture.culture_name,
                           Strain: culture.strain || "",
                           Stored: culture.stored_at || "",
@@ -4598,13 +4639,14 @@ export default function App() {
                 </div>
 
                 <div className="lt-note lt-culture-summary" style={{ marginBottom: 12 }}>
-                  This monitor uses one compact Appwrite collection for both fungi and bacteria. Readiness is calculated from the expected ready date, while completed and contaminated records keep their manually assigned status.
+                  This monitor supports fungi, bacteria, and manually entered specimen types in one compact Appwrite collection. Readiness is calculated from the expected ready date, while completed and contaminated records keep their manually assigned status.
                 </div>
 
                 <div className="lt-stat-row">
                   <div className="lt-stat-card"><div className="lt-stat-num">{cultureSummary.total}</div><div className="lt-stat-label">Total cultures</div></div>
                   <div className="lt-stat-card"><div className="lt-stat-num">{cultureSummary.fungi}</div><div className="lt-stat-label">Fungi logs</div></div>
                   <div className="lt-stat-card"><div className="lt-stat-num">{cultureSummary.bacteria}</div><div className="lt-stat-label">Bacteria logs</div></div>
+                  <div className="lt-stat-card"><div className="lt-stat-num">{cultureSummary.other}</div><div className="lt-stat-label">Other specimens</div></div>
                   <div className="lt-stat-card"><div className="lt-stat-num">{cultureSummary.ready}</div><div className="lt-stat-label">Ready now</div></div>
                 </div>
 
@@ -4615,11 +4657,11 @@ export default function App() {
                       className="lt-search-input"
                       value={cultureSearch}
                       onChange={(e) => setCultureSearch(e.target.value)}
-                      placeholder="Search culture, strain, location, or notes..."
+                      placeholder="Search specimen, culture, strain, location, or notes..."
                     />
                   </div>
                   <select className="lt-select" value={cultureTypeFilter} onChange={(e) => setCultureTypeFilter(e.target.value)}>
-                    <option value="All">All culture types</option>
+                    <option value="All">All specimen types</option>
                     {CULTURE_TYPES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                   <select className="lt-select" value={cultureStatusFilter} onChange={(e) => setCultureStatusFilter(e.target.value)}>
@@ -4775,28 +4817,49 @@ export default function App() {
       )}
 
       {modalMode === "culture" && (
-        <Modal title="Add fungi or bacteria growth log" onClose={closeModal}>
+        <Modal title="Add specimen growth log" onClose={closeModal}>
           <div className="lt-note" style={{ marginBottom: 14 }}>
-            VIPM monitoring record. Use the expected ready date to track incubation progress and update the status when the culture is ready, completed, or contaminated.
+            VIPM monitoring record. Choose fungi, bacteria, or Other specimen. Use the expected ready date to track incubation progress and update the status when the specimen is ready, completed, or contaminated.
           </div>
           <div className="lt-form-row">
             <div className="lt-field">
-              <label className="lt-label">Culture type</label>
-              <select className="lt-select" value={cultureForm.organism_type} onChange={(e) => setCultureForm({ ...cultureForm, organism_type: e.target.value })}>
+              <label className="lt-label">Specimen category</label>
+              <select
+                className="lt-select"
+                value={cultureForm.organism_type}
+                onChange={(e) => setCultureForm({
+                  ...cultureForm,
+                  organism_type: e.target.value,
+                  specimen_type: e.target.value === "other" ? cultureForm.specimen_type : "",
+                })}
+              >
                 {CULTURE_TYPES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </div>
             <div className="lt-field">
-              <label className="lt-label">Culture name</label>
+              <label className="lt-label">Specimen / culture name</label>
               <input
                 className="lt-input"
                 maxLength={255}
                 value={cultureForm.culture_name}
                 onChange={(e) => setCultureForm({ ...cultureForm, culture_name: e.target.value })}
-                placeholder={cultureForm.organism_type === "bacteria" ? "e.g. Bacillus isolate" : "e.g. Trichoderma culture"}
+                placeholder={cultureForm.organism_type === "bacteria" ? "e.g. Bacillus isolate" : cultureForm.organism_type === "fungi" ? "e.g. Trichoderma culture" : "e.g. Sample A or batch name"}
               />
             </div>
           </div>
+          {cultureForm.organism_type === "other" && (
+            <div className="lt-field">
+              <label className="lt-label">Specimen type</label>
+              <input
+                className="lt-input"
+                maxLength={255}
+                value={cultureForm.specimen_type}
+                onChange={(e) => setCultureForm({ ...cultureForm, specimen_type: e.target.value })}
+                placeholder="e.g. Algae, plant tissue, yeast, cell culture, insect specimen"
+              />
+              <div className="lt-modal-hint">Enter the actual kind of specimen being grown or monitored.</div>
+            </div>
+          )}
           <div className="lt-field">
             <label className="lt-label">Strain / isolate code <span className="lt-optional">(optional)</span></label>
             <input className="lt-input" maxLength={255} value={cultureForm.strain} onChange={(e) => setCultureForm({ ...cultureForm, strain: e.target.value })} placeholder="Batch, strain, or isolate identifier" />
