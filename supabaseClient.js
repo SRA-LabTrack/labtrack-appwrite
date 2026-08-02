@@ -104,7 +104,11 @@ async function getCurrentProfile() {
   const user = await getCurrentUser();
   if (!user) return { user: null, profile: null };
   try {
-    const profile = await databases.getDocument(appwriteDatabaseId, COLLECTIONS.profiles, user.id);
+    const profile = await databases.getDocument({
+      databaseId: appwriteDatabaseId,
+      collectionId: COLLECTIONS.profiles,
+      documentId: user.id,
+    });
     return { user, profile: mapDocument(profile) };
   } catch {
     return { user, profile: null };
@@ -170,7 +174,13 @@ function isOverdueBorrow(row) {
 }
 
 async function listCollection(table, queries = []) {
-  const response = await databases.listDocuments(appwriteDatabaseId, collectionFor(table), queries);
+  const response = await databases.listDocuments({
+    databaseId: appwriteDatabaseId,
+    collectionId: collectionFor(table),
+    queries,
+    total: true,
+    ttl: 0,
+  });
   return (response.documents || []).map(mapDocument);
 }
 
@@ -180,11 +190,13 @@ async function listAllCollection(table, { pageSize = 100, maxRows = 5000 } = {})
 
   while (rows.length < maxRows) {
     const take = Math.min(pageSize, maxRows - rows.length);
-    const response = await databases.listDocuments(
-      appwriteDatabaseId,
-      collectionFor(table),
-      [Query.limit(take), Query.offset(offset)]
-    );
+    const response = await databases.listDocuments({
+      databaseId: appwriteDatabaseId,
+      collectionId: collectionFor(table),
+      queries: [Query.limit(take), Query.offset(offset)],
+      total: true,
+      ttl: 0,
+    });
     const documents = (response.documents || []).map(mapDocument);
     rows.push(...documents);
 
@@ -196,23 +208,41 @@ async function listAllCollection(table, { pageSize = 100, maxRows = 5000 } = {})
 }
 
 async function getById(table, id) {
-  const document = await databases.getDocument(appwriteDatabaseId, collectionFor(table), id);
+  const document = await databases.getDocument({
+    databaseId: appwriteDatabaseId,
+    collectionId: collectionFor(table),
+    documentId: id,
+  });
   return mapDocument(document);
 }
 
 async function createRow(table, payload, documentId = ID.unique()) {
   const data = cleanPayload(payload);
-  const document = await databases.createDocument(appwriteDatabaseId, collectionFor(table), documentId, data);
+  const document = await databases.createDocument({
+    databaseId: appwriteDatabaseId,
+    collectionId: collectionFor(table),
+    documentId,
+    data,
+  });
   return mapDocument(document);
 }
 
 async function updateRow(table, id, payload) {
-  const document = await databases.updateDocument(appwriteDatabaseId, collectionFor(table), id, cleanPayload(payload));
+  const document = await databases.updateDocument({
+    databaseId: appwriteDatabaseId,
+    collectionId: collectionFor(table),
+    documentId: id,
+    data: cleanPayload(payload),
+  });
   return mapDocument(document);
 }
 
 async function deleteRow(table, id) {
-  await databases.deleteDocument(appwriteDatabaseId, collectionFor(table), id);
+  await databases.deleteDocument({
+    databaseId: appwriteDatabaseId,
+    collectionId: collectionFor(table),
+    documentId: id,
+  });
   return null;
 }
 
@@ -387,11 +417,13 @@ class AppwriteQueryBuilder {
         }
       }
 
-      const response = await databases.listDocuments(
-        appwriteDatabaseId,
-        collectionFor(this.table),
-        this.buildAppwriteQueries()
-      );
+      const response = await databases.listDocuments({
+        databaseId: appwriteDatabaseId,
+        collectionId: collectionFor(this.table),
+        queries: this.buildAppwriteQueries(),
+        total: true,
+        ttl: 0,
+      });
 
       let data = (response.documents || []).map(mapDocument);
       data = this.applyClientFilters(data);
@@ -1352,11 +1384,11 @@ export const supabase = isAppwriteConfigured
         async signInWithPassword({ email, password }) {
           try {
             try {
-              await account.deleteSession("current");
+              await account.deleteSession({ sessionId: "current" });
             } catch {
               // No active session.
             }
-            await account.createEmailPasswordSession(email, password);
+            await account.createEmailPasswordSession({ email, password });
             const user = mapUser(await account.get());
             const session = { user };
             notifyAuthListeners("SIGNED_IN", session);
@@ -1370,9 +1402,14 @@ export const supabase = isAppwriteConfigured
           try {
             const fullName = options?.data?.full_name || email;
             const dept = options?.data?.dept || "";
-            const newUser = await account.create(ID.unique(), email, password, fullName);
+            const newUser = await account.create({
+              userId: ID.unique(),
+              email,
+              password,
+              name: fullName,
+            });
             try {
-              await account.createEmailPasswordSession(email, password);
+              await account.createEmailPasswordSession({ email, password });
             } catch {
               // Some Appwrite settings require verification before session creation.
             }
@@ -1403,7 +1440,7 @@ export const supabase = isAppwriteConfigured
 
         async signOut() {
           try {
-            await account.deleteSession("current");
+            await account.deleteSession({ sessionId: "current" });
           } catch {
             // Already signed out.
           }
