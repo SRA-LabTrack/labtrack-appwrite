@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FlaskConical,
   LayoutGrid,
@@ -31,7 +31,7 @@ import {
   ArrowRightLeft,
   FileSpreadsheet,
 } from "lucide-react";
-import { isSupabaseConfigured, supabase, offlineSync } from "./supabaseClient";
+import { isSupabaseConfigured, supabase } from "./supabaseClient";
 
 const DEPARTMENTS = [
   "BMO Laboratory",
@@ -282,7 +282,7 @@ function materialTypeLabel(value) {
 }
 
 function fmtTime(ts) {
-  if (!ts) return "—";
+  if (!ts) return "â€”";
   const d = new Date(ts);
   return d.toLocaleString("en-US", {
     month: "short",
@@ -387,7 +387,7 @@ function MaterialCard({
       <div className="lt-card-body">
         <div className="lt-perforation" />
         <div className="lt-card-eyebrow">
-          {material.category || "Uncategorized"}{showDept ? ` · ${material.dept}` : ""}
+          {material.category || "Uncategorized"}{showDept ? ` Â· ${material.dept}` : ""}
         </div>
         <div className={`lt-designation lt-designation-${material.material_type === "non_consumable" ? "durable" : "consumable"}`}>
           {materialTypeLabel(material.material_type)}
@@ -403,10 +403,10 @@ function MaterialCard({
           <span className="lt-card-updated">Updated {fmtTime(material.updated)}</span>
         </div>
         <div className={`lt-expiry lt-expiry-${expiryStatus}`}>
-          <CalendarClock size={12} /> {expiryLabel[expiryStatus]}{material.expires_at ? ` · ${fmtDate(material.expires_at)}` : ""}
+          <CalendarClock size={12} /> {expiryLabel[expiryStatus]}{material.expires_at ? ` Â· ${fmtDate(material.expires_at)}` : ""}
         </div>
         <div className="lt-card-approval">
-          <strong>Supplier:</strong> {material.supplier_name || "Not set"} · <strong>Price:</strong> ₱{displayQty(material.price_per_unit || 0)}/{material.unit}
+          <strong>Supplier:</strong> {material.supplier_name || "Not set"} Â· <strong>Price:</strong> â‚±{displayQty(material.price_per_unit || 0)}/{material.unit}
         </div>
         <div className="lt-card-approval lt-mr-line">
           <UserCheck size={12} /> <strong>MR:</strong> {material.material_responsible || "Not assigned"}
@@ -419,13 +419,13 @@ function MaterialCard({
         </div>
         {(material.material_type === "non_consumable" || material.maintenance_due_at || material.last_maintenance_at || material.maintenance_note) && (
           <div className={`lt-maintenance lt-maintenance-${maintenanceStatus}`}>
-            <strong>Maintenance:</strong> {maintenanceLabel[maintenanceStatus]}{material.maintenance_due_at ? ` · due ${fmtDate(material.maintenance_due_at)}` : ""}
-            <br /><strong>Condition:</strong> {material.condition || "Good"}{material.maintenance_note ? ` · ${material.maintenance_note}` : ""}
+            <strong>Maintenance:</strong> {maintenanceLabel[maintenanceStatus]}{material.maintenance_due_at ? ` Â· due ${fmtDate(material.maintenance_due_at)}` : ""}
+            <br /><strong>Condition:</strong> {material.condition || "Good"}{material.maintenance_note ? ` Â· ${material.maintenance_note}` : ""}
           </div>
         )}
         {material.approved_by_name && (
           <div className="lt-card-approval">
-            Approved by {material.approved_by_name}{material.approved_at ? ` · ${fmtTime(material.approved_at)}` : ""}
+            Approved by {material.approved_by_name}{material.approved_at ? ` Â· ${fmtTime(material.approved_at)}` : ""}
           </div>
         )}
         {hasActions && (
@@ -479,15 +479,15 @@ function MaterialDetails({ material }) {
 
   const detailRows = [
     ["Department", material.dept || "Not specified"],
-    ["MR — Material Responsibility", material.material_responsible || "Not assigned"],
+    ["MR â€” Material Responsibility", material.material_responsible || "Not assigned"],
     ["Category", material.category || "Uncategorized"],
     ["Material type", materialTypeLabel(material.material_type)],
     ["Current quantity", `${displayQty(material.qty)} ${material.unit || ""}`.trim()],
     ["Reorder threshold", `${displayQty(material.threshold)} ${material.unit || ""}`.trim()],
     ["Stock status", statusLabel[stockStatus]],
-    ["Expiry", material.expires_at ? `${fmtDate(material.expires_at)} · ${expiryLabel[expiryStatus]}` : "No expiry date"],
+    ["Expiry", material.expires_at ? `${fmtDate(material.expires_at)} Â· ${expiryLabel[expiryStatus]}` : "No expiry date"],
     ["Supplier", material.supplier_name || "Not set"],
-    ["Price per unit", `₱${displayQty(material.price_per_unit || 0)} / ${material.unit || "unit"}`],
+    ["Price per unit", `â‚±${displayQty(material.price_per_unit || 0)} / ${material.unit || "unit"}`],
     ["Hazard level", material.hazard_level || "Low"],
     ["Required PPE", material.ppe_required || "Standard lab PPE"],
     ["Storage instruction", material.storage_instruction || "Not specified"],
@@ -497,7 +497,7 @@ function MaterialDetails({ material }) {
     ["Compatibility notes", material.compatibility_notes || "No compatibility notes"],
     ["Condition", material.condition || "Good"],
     ["Last maintenance", material.last_maintenance_at ? fmtDate(material.last_maintenance_at) : "Not set"],
-    ["Next maintenance", material.maintenance_due_at ? `${fmtDate(material.maintenance_due_at)} · ${maintenanceLabel[maintenanceStatus]}` : "Not set"],
+    ["Next maintenance", material.maintenance_due_at ? `${fmtDate(material.maintenance_due_at)} Â· ${maintenanceLabel[maintenanceStatus]}` : "Not set"],
     ["Maintenance note", material.maintenance_note || "No maintenance note"],
     ["Approved by", material.approved_by_name || "Not recorded"],
     ["Approved at", material.approved_at ? fmtTime(material.approved_at) : "Not recorded"],
@@ -508,7 +508,7 @@ function MaterialDetails({ material }) {
     <div className="lt-material-details">
       <div className="lt-material-details-hero">
         <div>
-          <div className="lt-card-eyebrow">{material.category || "Uncategorized"} · {material.dept || "No department"}</div>
+          <div className="lt-card-eyebrow">{material.category || "Uncategorized"} Â· {material.dept || "No department"}</div>
           <div className="lt-material-details-name">{material.name}</div>
           <div className="lt-material-details-sub">{materialTypeLabel(material.material_type)} material record</div>
         </div>
@@ -608,7 +608,7 @@ function ChatPanel({ messages, currentRole, input, setInput, onSend, emptyText, 
           return (
             <div key={message.id} className={`lt-chat-row ${mine ? "mine" : "theirs"}`}>
               <div className={`lt-bubble ${mine ? "lt-bubble-user" : "lt-bubble-admin"}`}>{message.text}</div>
-              <div className="lt-bubble-meta">{message.sender_name} · {fmtTime(message.timestamp)}</div>
+              <div className="lt-bubble-meta">{message.sender_name} Â· {fmtTime(message.timestamp)}</div>
             </div>
           );
         })}
@@ -669,7 +669,7 @@ function NotificationList({ rows }) {
           <div className="lt-request-head">
             <div>
               <div className="lt-request-title">{n.title}</div>
-              <div className="lt-request-meta">{n.dept || "All departments"} · {n.detail}</div>
+              <div className="lt-request-meta">{n.dept || "All departments"} Â· {n.detail}</div>
             </div>
             <span className={`lt-tag lt-tag-${String(n.severity || "info").toLowerCase()}`}>{n.severity || "info"}</span>
           </div>
@@ -752,12 +752,12 @@ function ForecastTable({ rows, onCreateRestock }) {
             <tr key={`${row.material_id}-${row.dept}`}>
               <td><span className={`lt-tag lt-tag-${String(row.priority || "ok").toLowerCase()}`}>{row.priority || "ok"}</span></td>
               <td>{row.dept}</td>
-              <td>{row.material_name}<div className="lt-request-meta">{row.category || "Uncategorized"} · {row.hazard_level || "Low"} hazard</div></td>
+              <td>{row.material_name}<div className="lt-request-meta">{row.category || "Uncategorized"} Â· {row.hazard_level || "Low"} hazard</div></td>
               <td className="lt-mono">{displayQty(row.current_qty)} {row.unit}</td>
               <td className="lt-mono">{displayQty(row.weekly_usage_avg)} {row.unit}/week</td>
               <td>{fmtWeeks(row.weeks_until_empty)}</td>
               <td className="lt-mono">{displayQty(row.suggested_restock_qty)} {row.unit}</td>
-              <td className="lt-mono">₱{displayQty(row.estimated_restock_cost || 0)}</td>
+              <td className="lt-mono">â‚±{displayQty(row.estimated_restock_cost || 0)}</td>
               <td>{row.supplier_name || "Not set"}</td>
               <td>{row.reason}</td>
               {onCreateRestock && (
@@ -788,7 +788,7 @@ function RestockRequestsTable({ rows, onStatus }) {
               <td>{r.dept}</td>
               <td>{r.material_name}</td>
               <td className="lt-mono">{displayQty(r.qty)} {r.unit}</td>
-              <td className="lt-mono">₱{displayQty(r.estimated_cost || 0)}</td>
+              <td className="lt-mono">â‚±{displayQty(r.estimated_cost || 0)}</td>
               <td>{r.supplier_name || "Not set"}</td>
               <td>{r.reason}</td>
               <td className="lt-mono" style={{ fontSize: 12 }}>{fmtTime(r.updated_at || r.created_at)}</td>
@@ -824,15 +824,15 @@ function SuppliersTable({ rows, onDelete, onReview }) {
               <td>{s.dept || "All departments"}</td>
               <td><strong>{s.name}</strong><div className="lt-request-meta">{s.contact_person || "No contact person"}</div></td>
               <td>{s.material_name || "Any material"}<div className="lt-request-meta">{s.material_category || "Any category"}</div></td>
-              <td className="lt-mono">₱{displayQty(s.price_per_unit || 0)} / {s.unit || "unit"}</td>
-              <td>{s.email || "—"}<div className="lt-request-meta">{s.phone || "—"}</div></td>
+              <td className="lt-mono">â‚±{displayQty(s.price_per_unit || 0)} / {s.unit || "unit"}</td>
+              <td>{s.email || "â€”"}<div className="lt-request-meta">{s.phone || "â€”"}</div></td>
               <td>
                 <div>{s.submitted_by_name || "Unknown user"}</div>
-                <div className="lt-request-meta">{s.created_at ? new Date(s.created_at).toLocaleString() : "—"}</div>
+                <div className="lt-request-meta">{s.created_at ? new Date(s.created_at).toLocaleString() : "â€”"}</div>
                 {s.reviewer_name && <div className="lt-request-meta">Reviewed by {s.reviewer_name}</div>}
                 {s.review_note && <div className="lt-request-meta">Note: {s.review_note}</div>}
               </td>
-              <td>{s.notes || "—"}</td>
+              <td>{s.notes || "â€”"}</td>
               <td>
                 <div className="lt-action-stack">
                   {s.status === "pending" && <button className="lt-btn lt-btn-accent lt-btn-sm" onClick={() => onReview(s, "approved")}><UserCheck size={13} /> Approve</button>}
@@ -862,7 +862,7 @@ function UserActivityTable({ rows }) {
           {rows.map((row) => (
             <tr key={row.user_id}>
               <td><strong>{row.full_name || "Unnamed user"}</strong><div className="lt-request-meta">{row.email || "No email"}</div></td>
-              <td>{row.dept || "—"}</td>
+              <td>{row.dept || "â€”"}</td>
               <td className="lt-mono">{row.request_count || 0}</td>
               <td className="lt-mono">{row.usage_count || 0}</td>
               <td className="lt-mono">{row.borrow_count || 0}</td>
@@ -896,7 +896,7 @@ function OverdueBorrowsTable({ rows, onReturn }) {
               <td>{row.material_name}</td>
               <td>{row.borrower_name}</td>
               <td className="lt-mono">{displayQty(Number(row.qty_borrowed || 0) - Number(row.qty_returned || 0))} {row.unit}</td>
-              <td>{row.purpose || "—"}</td>
+              <td>{row.purpose || "â€”"}</td>
               <td className="lt-mono" style={{ fontSize: 12 }}>{fmtTime(row.borrowed_at)}</td>
               <td className="lt-mono" style={{ fontSize: 12 }}>{row.due_at ? fmtDate(row.due_at) : "No due date"}</td>
               <td><button className="lt-btn lt-btn-ghost lt-btn-sm" onClick={() => onReturn(row)}><RotateCcw size={13} /> Return</button></td>
@@ -932,7 +932,7 @@ function MaintenanceTable({ rows, onMaintenance = null, actionLabel = "Update" }
                 <td>{row.condition || "Good"}</td>
                 <td className="lt-mono" style={{ fontSize: 12 }}>{row.last_maintenance_at ? fmtDate(row.last_maintenance_at) : "Not set"}</td>
                 <td className="lt-mono" style={{ fontSize: 12 }}>{row.maintenance_due_at ? fmtDate(row.maintenance_due_at) : "Not set"}</td>
-                <td>{row.maintenance_note || "—"}</td>
+                <td>{row.maintenance_note || "â€”"}</td>
                 {onMaintenance && (
                   <td><button className="lt-btn lt-btn-accent lt-btn-sm" onClick={() => onMaintenance(row)}><CalendarClock size={13} /> {actionLabel}</button></td>
                 )}
@@ -966,12 +966,12 @@ function MaintenanceRequestsTable({ rows, isAdmin = false, onApprove = null, onR
               {isAdmin && <td>{request.dept}</td>}
               <td><strong>{request.material_name}</strong><div className="lt-request-meta">Requested by {request.requester_name || "Unknown user"}</div></td>
               <td>{request.maintenance_type || "Maintenance"}</td>
-              <td className="lt-mono" style={{ fontSize: 12 }}>{request.created_at ? fmtTime(request.created_at) : "—"}<div className="lt-request-meta">Service: {request.maintenance_date ? fmtDate(request.maintenance_date) : "Not set"}</div></td>
+              <td className="lt-mono" style={{ fontSize: 12 }}>{request.created_at ? fmtTime(request.created_at) : "â€”"}<div className="lt-request-meta">Service: {request.maintenance_date ? fmtDate(request.maintenance_date) : "Not set"}</div></td>
               <td className="lt-mono" style={{ fontSize: 12 }}>{request.next_due_at ? fmtDate(request.next_due_at) : "Not set"}</td>
               <td>{request.condition || "Needs inspection"}</td>
               <td>{request.service_provider || "Not set"}<div className="lt-request-meta">{request.technician || "No technician assigned"}</div></td>
-              <td className="lt-mono">₱{displayQty(request.cost || 0)}</td>
-              <td>{request.notes || "—"}{request.admin_note && <div className="lt-request-meta"><strong>Admin:</strong> {request.admin_note}{request.reviewer_name ? ` · ${request.reviewer_name}` : ""}</div>}</td>
+              <td className="lt-mono">â‚±{displayQty(request.cost || 0)}</td>
+              <td>{request.notes || "â€”"}{request.admin_note && <div className="lt-request-meta"><strong>Admin:</strong> {request.admin_note}{request.reviewer_name ? ` Â· ${request.reviewer_name}` : ""}</div>}</td>
               {isAdmin && (
                 <td>
                   {request.status === "pending" ? (
@@ -1075,7 +1075,7 @@ function SetupNotice() {
     <div className="lt-login-wrap">
       <div className="lt-login-card lt-setup-card">
         <div className="lt-brand">
-          <div className="lt-brand-mark"><FlaskConical size={18} /></div>
+          <div className="lt-brand-mark"><img className="lt-brand-icon-image" src="/labtrack-green-icon.svg" alt="LabTrack" /></div>
           <div>
             <div className="lt-brand-name">LabTrack backend needed</div>
             <div className="lt-brand-sub">This version uses Appwrite Cloud for accounts and database sync.</div>
@@ -1102,7 +1102,7 @@ function AccountGate({ profile, onLogout }) {
           <div className="lt-brand-mark"><UserCheck size={18} /></div>
           <div>
             <div className="lt-brand-name">{isRejected ? "Account not approved" : "Waiting for admin approval"}</div>
-            <div className="lt-brand-sub">{profile?.full_name || "Your account"} · {profile?.dept || "No department selected"}</div>
+            <div className="lt-brand-sub">{profile?.full_name || "Your account"} Â· {profile?.dept || "No department selected"}</div>
           </div>
         </div>
         <div className={isRejected ? "lt-error-box" : "lt-note"}>
@@ -1113,7 +1113,7 @@ function AccountGate({ profile, onLogout }) {
             <div style={{ marginTop: 10 }}><strong>Admin note:</strong> {profile.admin_note}</div>
           )}
           {profile?.reviewer_name && (
-            <div style={{ marginTop: 6 }}><strong>Reviewed by:</strong> {profile.reviewer_name} · {fmtTime(profile.reviewed_at)}</div>
+            <div style={{ marginTop: 6 }}><strong>Reviewed by:</strong> {profile.reviewer_name} Â· {fmtTime(profile.reviewed_at)}</div>
           )}
         </div>
         <button className="lt-btn lt-btn-primary" style={{ marginTop: 16 }} onClick={onLogout}>Back to login</button>
@@ -1123,10 +1123,6 @@ function AccountGate({ profile, onLogout }) {
 }
 
 export default function App() {
-  const [offlineState, setOfflineState] = useState(() => offlineSync.getStatus());
-
-  useEffect(() => offlineSync.subscribe(setOfflineState), []);
-
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [authMode, setAuthMode] = useState("login");
@@ -1750,34 +1746,6 @@ export default function App() {
     loadData();
   }, [profile, loadData]);
 
-  useEffect(() => {
-    if (!session?.user?.id || !profile || profile.status !== "approved") return;
-
-    let cancelled = false;
-    offlineSync
-      .prepareForUser(session.user.id, profile)
-      .catch((error) => {
-        if (!cancelled) {
-          console.warn("LabTrack could not finish preparing offline access.", error);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [session?.user?.id, profile?.id, profile?.role, profile?.status, profile?.dept]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !profile || profile.status !== "approved") return undefined;
-
-    const refreshAfterSync = () => {
-      loadData();
-      loadChats();
-    };
-
-    window.addEventListener("labtrack-data-synced", refreshAfterSync);
-    return () => window.removeEventListener("labtrack-data-synced", refreshAfterSync);
-  }, [profile, loadData, loadChats]);
 
   useEffect(() => {
     if (!profile || profile.status !== "approved") return;
@@ -1828,7 +1796,7 @@ export default function App() {
           setAppMessage(`New support message from ${source}: ${String(message.text || "").slice(0, 90)}`);
 
           if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-            const notice = new Notification(`LabTrack support · ${source}`, {
+            const notice = new Notification(`LabTrack support Â· ${source}`, {
               body: String(message.text || "New support message"),
               tag: `labtrack-chat-${message.dept}`,
             });
@@ -2345,7 +2313,7 @@ export default function App() {
       material_name: name.trim(),
       type: "admin_add",
       qty: Number(qty),
-      detail: `${purpose.trim() || "Added directly by administrator"} · MR: ${material_responsible.trim()}`,
+      detail: `${purpose.trim() || "Added directly by administrator"} Â· MR: ${material_responsible.trim()}`,
       user_id: session.user.id,
       user_name: displayName,
       timestamp: now,
@@ -2766,7 +2734,7 @@ export default function App() {
         material_name: supplier.material_name || supplier.material_category || supplier.name,
         type: "supplier",
         qty: 0,
-        detail: `${status === "approved" ? "Approved" : "Rejected"} supplier ${supplier.name}${review_note ? ` · ${review_note}` : ""}`,
+        detail: `${status === "approved" ? "Approved" : "Rejected"} supplier ${supplier.name}${review_note ? ` Â· ${review_note}` : ""}`,
         user_id: session.user.id,
         user_name: displayName,
       });
@@ -3088,7 +3056,7 @@ export default function App() {
       h1{font-size:22px;margin:0 0 4px;} .meta{color:#5B6B66;font-size:12px;margin-bottom:18px;}
       table{border-collapse:collapse;width:100%;font-size:12px;} th,td{border:1px solid #D9DED4;padding:7px;text-align:left;vertical-align:top;} th{background:#F6F7F3;text-transform:uppercase;font-size:10px;}
       @media print{button{display:none;} body{margin:12mm;}}
-    </style></head><body><button onclick="window.print()" style="margin-bottom:12px;padding:8px 12px">Print / Save PDF</button><h1>${htmlEscape(title)}</h1><div class="meta">Generated ${new Date().toLocaleString()} · Department: ${htmlEscape(reportDeptFilter)}</div><table><thead><tr>${tableHead}</tr></thead><tbody>${tableRows}</tbody></table></body></html>`);
+    </style></head><body><button onclick="window.print()" style="margin-bottom:12px;padding:8px 12px">Print / Save PDF</button><h1>${htmlEscape(title)}</h1><div class="meta">Generated ${new Date().toLocaleString()} Â· Department: ${htmlEscape(reportDeptFilter)}</div><table><thead><tr>${tableHead}</tr></thead><tbody>${tableRows}</tbody></table></body></html>`);
     win.document.close();
     win.focus();
   }
@@ -3299,75 +3267,21 @@ export default function App() {
 
   return (
     <div className="lt-root" style={{ "--accent": accent, "--accent-soft": accentSoft }}>
-      <div
-        className={`lt-sync-status ${
-          offlineState.preparing
-            ? "preparing"
-            : !offlineState.online
-              ? "offline"
-              : offlineState.syncing
-                ? "syncing"
-                : offlineState.pending
-                  ? "pending"
-                  : offlineState.offlineReady
-                    ? "ready"
-                    : ""
-        }`}
-        role="status"
-        aria-live="polite"
-      >
-        <span className="lt-sync-dot" />
-        <span>
-          {offlineState.preparing
-            ? `${offlineState.prepareMessage || "Preparing offline access…"} ${offlineState.prepareProgress || 0}%`
-            : !offlineState.online
-              ? offlineState.offlineReady
-                ? `Offline · all prepared sections available${offlineState.pending ? ` · ${offlineState.pending} waiting to sync` : ""}`
-                : "Offline · connect once to prepare every section"
-              : offlineState.syncing
-                ? "Synchronizing saved changes…"
-                : offlineState.pending
-                  ? `${offlineState.pending} saved change${offlineState.pending === 1 ? "" : "s"} waiting to sync`
-                  : offlineState.offlineReady
-                    ? "Online · offline access ready"
-                    : "Online · preparing offline access after login"}
-        </span>
-        {offlineState.online && offlineState.pending > 0 && !offlineState.syncing && (
-          <button type="button" onClick={() => offlineSync.syncNow()}>
-            Sync now
-          </button>
-        )}
-      </div>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap');
+600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap');
 
         html, body, #root { width:100%; min-height:100%; scroll-behavior:smooth; }
         body { margin:0; overflow-x:hidden; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
         .lt-root {
           --paper:#F6F7F3; --paper-line:#E2E7DF; --ink:#1E2A28; --ink-soft:#5B6B66;
-          --user-accent:#1F6F78; --user-accent-soft:#DCEEEF; --admin-accent:#6B3FA0; --admin-accent-soft:#EDE3F5;
+          --user-accent:#1F6F78; --user-accent-soft:#DCEEEF; --admin-accent:#2E7D55; --admin-accent-soft:#DDF3E5;
           --ok:#3A8347; --warn:#C4762A; --crit:#B23A34; --card-bg:#FFFFFF; --border:#D9DED4;
-          font-family:'Inter',sans-serif; color:var(--ink);
+          font-family:'Libertinus Serif',Georgia,serif; color:var(--ink);
           background:linear-gradient(var(--paper-line) 1px, transparent 1px) 0 0 / 100% 28px, var(--paper);
           min-height:100dvh; width:100%; box-sizing:border-box;
         }
         .lt-root * { box-sizing:border-box; }
-        .lt-sync-status {
-          position:fixed; top:max(10px, env(safe-area-inset-top)); right:12px; z-index:9999;
-          display:flex; align-items:center; gap:7px; max-width:min(430px, calc(100vw - 24px));
-          padding:8px 11px; border:1px solid rgba(30,42,40,.14); border-radius:999px;
-          background:rgba(255,255,255,.95); color:var(--ink); box-shadow:0 10px 30px rgba(30,42,40,.12);
-          backdrop-filter:blur(12px); font-size:11px; font-weight:700;
-        }
-        .lt-sync-status.offline { background:rgba(255,246,225,.97); color:#7A4A0A; }
-        .lt-sync-status.syncing, .lt-sync-status.preparing { background:rgba(232,243,255,.97); color:#245B86; }
-        .lt-sync-status.pending { background:rgba(255,244,230,.97); color:#85500C; }
-        .lt-sync-status.ready { background:rgba(238,247,237,.97); color:#356B3E; }
-        .lt-sync-dot { width:7px; height:7px; flex:0 0 auto; border-radius:50%; background:currentColor; box-shadow:0 0 0 3px color-mix(in srgb, currentColor 15%, transparent); }
-        .lt-sync-status.preparing .lt-sync-dot, .lt-sync-status.syncing .lt-sync-dot { animation:lt-sync-pulse 1.2s ease-in-out infinite; }
-        .lt-sync-status button { border:0; border-radius:999px; padding:4px 8px; background:currentColor; color:#fff; font:inherit; cursor:pointer; }
-        @keyframes lt-sync-pulse { 50% { opacity:.35; transform:scale(.78); } }
-        .lt-mono { font-family:'JetBrains Mono',monospace; }
+        .lt-mono { font-family:'Libertinus Serif',Georgia,serif; }
         .lt-note { font-size:13px; line-height:1.55; color:var(--ink-soft); background:var(--paper); border:1px solid var(--border); padding:14px; border-radius:4px; }
         .lt-note pre { white-space:pre-wrap; background:#fff; border:1px solid var(--border); padding:10px; border-radius:3px; color:var(--ink); }
 
@@ -3375,19 +3289,8 @@ export default function App() {
         .lt-login-card { width:100%; max-width:420px; background:var(--card-bg); border:1px solid var(--border); border-radius:6px; padding:32px; position:relative; box-shadow:0 18px 70px rgba(30,42,40,.08); }
         .lt-login-card::before { content:""; position:absolute; top:0; left:24px; right:24px; border-top:1px dashed var(--border); }
         .lt-brand { display:flex; align-items:center; gap:10px; margin-bottom:24px; }
-        .lt-brand-login { flex-direction:column; justify-content:center; text-align:center; gap:12px; }
-        .lt-login-logo {
-          width:clamp(118px, 34vw, 154px);
-          height:auto;
-          display:block;
-          border-radius:25%;
-          box-shadow:0 14px 38px rgba(7,79,43,.16);
-        }
-        .lt-brand-mark { width:42px; height:42px; border-radius:12px; background:transparent; display:flex; align-items:center; justify-content:center; color:#fff; flex:0 0 auto; overflow:hidden; }
-        .lt-brand-logo-image { display:block; width:100%; height:100%; object-fit:contain; }
-        .lt-brand-powered { font-size:10px; color:var(--ink-soft); margin-top:3px; letter-spacing:.02em; }
-        .lt-brand-powered strong { color:#3A8347; font-weight:800; }
-        .lt-brand-name { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:20px; letter-spacing:-.02em; }
+        .lt-brand-mark { width:36px; height:36px; border-radius:50%; background:#1F6F78; display:flex; align-items:center; justify-content:center; color:#fff; flex:0 0 auto; }
+        .lt-brand-name { font-family:'Libertinus Serif',Georgia,serif; font-weight:700; font-size:20px; letter-spacing:-.02em; }
         .lt-brand-sub { font-size:12px; color:var(--ink-soft); margin-top:1px; }
         .lt-auth-switch { display:flex; border:1px solid var(--border); border-radius:4px; overflow:hidden; margin-bottom:16px; }
         .lt-auth-switch button { flex:1; padding:9px; background:#fff; border:none; font-size:13px; font-weight:700; color:var(--ink-soft); cursor:pointer; }
@@ -3396,13 +3299,13 @@ export default function App() {
         .lt-toolbar { display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
         .lt-field { margin-bottom:16px; }
         .lt-label { display:block; font-size:12px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
-        .lt-input, .lt-select, .lt-textarea { width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:8px; font-family:'Inter',sans-serif; font-size:14px; color:var(--ink); background:rgba(255,255,255,.96); transition:border-color .25s ease, box-shadow .25s ease, transform .25s ease; }
+        .lt-input, .lt-select, .lt-textarea { width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:8px; font-family:'Libertinus Serif',Georgia,serif; font-size:14px; color:var(--ink); background:rgba(255,255,255,.96); transition:border-color .25s ease, box-shadow .25s ease, transform .25s ease; }
         .lt-textarea { resize:vertical; min-height:72px; }
         .lt-field-help { margin-top:6px; color:var(--ink-soft); font-size:11.5px; line-height:1.45; }
         .lt-input:focus, .lt-select:focus, .lt-textarea:focus { outline:2px solid var(--accent, #1F6F78); outline-offset:1px; border-color:transparent; }
         .lt-error { font-size:12px; color:var(--crit); margin:-6px 0 12px; line-height:1.45; }
         .lt-success { font-size:12px; color:var(--ok); background:#EAF4E8; border:1px solid #C9DFC5; padding:9px 10px; border-radius:4px; margin-bottom:12px; line-height:1.45; }
-        .lt-btn { border:none; border-radius:8px; font-family:'Inter',sans-serif; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; justify-content:center; transition:transform .32s cubic-bezier(.22,1,.36,1), box-shadow .32s cubic-bezier(.22,1,.36,1), filter .2s ease; will-change:transform; }
+        .lt-btn { border:none; border-radius:8px; font-family:'Libertinus Serif',Georgia,serif; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; justify-content:center; transition:transform .32s cubic-bezier(.22,1,.36,1), box-shadow .32s cubic-bezier(.22,1,.36,1), filter .2s ease; will-change:transform; }
         .lt-btn:disabled { opacity:.6; cursor:not-allowed; }
         .lt-btn-primary { background:#1F6F78; color:#fff; padding:11px 16px; font-size:14px; width:100%; }
         .lt-btn-accent { background:var(--accent); color:#fff; padding:8px 12px; font-size:13px; }
@@ -3431,7 +3334,7 @@ export default function App() {
         .lt-logout { width:100%; display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-soft); background:none; border:none; cursor:pointer; padding:7px 0; }
         .lt-main { flex:1; padding:24px 32px; min-width:0; overflow-x:hidden; scroll-behavior:smooth; scrollbar-gutter:stable; }
         .lt-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:12px; }
-        .lt-h1 { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:clamp(20px, 2.5vw, 28px); letter-spacing:-.01em; }
+        .lt-h1 { font-family:'Libertinus Serif',Georgia,serif; font-weight:700; font-size:clamp(20px, 2.5vw, 28px); letter-spacing:-.01em; }
         .lt-h1-sub { font-size:13px; color:var(--ink-soft); margin-top:2px; }
 
         .lt-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(230px,100%),1fr)); gap:14px; }
@@ -3447,8 +3350,8 @@ export default function App() {
         .lt-card-body { padding:14px 14px 12px; flex:1; position:relative; min-width:0; }
         .lt-perforation { position:absolute; top:34px; left:14px; right:14px; border-top:1px dashed var(--border); }
         .lt-card-eyebrow { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .lt-card-name { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:14.5px; margin:14px 0 8px; line-height:1.25; min-height:36px; overflow-wrap:anywhere; }
-        .lt-card-qty { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:24px; overflow-wrap:anywhere; }
+        .lt-card-name { font-family:'Libertinus Serif',Georgia,serif; font-weight:700; font-size:14.5px; margin:14px 0 8px; line-height:1.25; min-height:36px; overflow-wrap:anywhere; }
+        .lt-card-qty { font-family:'Libertinus Serif',Georgia,serif; font-weight:700; font-size:24px; overflow-wrap:anywhere; }
         .lt-card-unit { font-size:12px; font-weight:500; color:var(--ink-soft); }
         .lt-card-meta { display:flex; align-items:center; justify-content:space-between; margin-top:8px; font-size:11px; color:var(--ink-soft); flex-wrap:wrap; gap:4px; }
         .lt-status-pill { display:flex; align-items:center; gap:5px; font-weight:700; }
@@ -3479,7 +3382,7 @@ export default function App() {
         .lt-expiry-expired { color:var(--crit); font-weight:800; }
         .lt-search-wrap { flex:1; min-width:min(100%, 260px); margin-bottom:12px; }
         .lt-search-line { display:flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--border); border-radius:4px; padding:0 10px; }
-        .lt-search-input { width:100%; border:none; outline:none; padding:10px 0; font-family:'Inter',sans-serif; font-size:14px; color:var(--ink); background:transparent; }
+        .lt-search-input { width:100%; border:none; outline:none; padding:10px 0; font-family:'Libertinus Serif',Georgia,serif; font-size:14px; color:var(--ink); background:transparent; }
         .lt-search-dept { margin-top:5px; font-size:11px; color:var(--ink-soft); }
         .lt-safety-box { margin-top:8px; padding:8px; background:var(--paper); border:1px solid var(--paper-line); border-radius:4px; font-size:11px; color:var(--ink-soft); line-height:1.35; display:grid; gap:3px; }
         .lt-safety-box div:first-child { display:flex; align-items:center; gap:5px; color:var(--ink); }
@@ -3518,9 +3421,9 @@ export default function App() {
         .lt-stat-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; margin-bottom:24px; }
         .lt-stat-card { background:rgba(255,255,255,.92); border:1px solid var(--border); border-radius:12px; padding:16px; transition:transform .45s cubic-bezier(.22,1,.36,1), box-shadow .45s cubic-bezier(.22,1,.36,1); }
         .lt-stat-card:hover { transform:translateY(-3px); box-shadow:0 14px 36px rgba(30,42,40,.09); }
-        .lt-stat-num { font-family:'JetBrains Mono',monospace; font-size:26px; font-weight:700; }
+        .lt-stat-num { font-family:'Libertinus Serif',Georgia,serif; font-size:26px; font-weight:700; }
         .lt-stat-label { font-size:11px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em; margin-top:4px; }
-        .lt-section-title { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:15px; margin:24px 0 12px; }
+        .lt-section-title { font-family:'Libertinus Serif',Georgia,serif; font-weight:700; font-size:15px; margin:24px 0 12px; }
         .lt-attn-row { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-bottom:1px solid var(--paper-line); font-size:13px; gap:14px; flex-wrap:wrap; }
         .lt-attn-row:last-child { border-bottom:none; }
         .lt-subtabs { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
@@ -3538,7 +3441,7 @@ export default function App() {
         .lt-request-card { background:rgba(255,255,255,.94); border:1px solid var(--border); border-radius:12px; padding:14px; display:grid; gap:8px; transition:transform .45s cubic-bezier(.22,1,.36,1), box-shadow .45s cubic-bezier(.22,1,.36,1); }
         .lt-request-card:hover { transform:translateY(-2px); box-shadow:0 12px 32px rgba(30,42,40,.08); }
         .lt-request-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; }
-        .lt-request-title { font-family:'Space Grotesk',sans-serif; font-weight:700; }
+        .lt-request-title { font-family:'Libertinus Serif',Georgia,serif; font-weight:700; }
         .lt-request-meta { font-size:12px; color:var(--ink-soft); line-height:1.45; }
         .lt-request-actions { display:flex; gap:8px; flex-wrap:wrap; }
 
@@ -3564,7 +3467,7 @@ export default function App() {
         .lt-culture-completed::before { background:var(--accent); }
         .lt-culture-card:hover { transform:translateY(-5px) scale(1.008); box-shadow:0 20px 48px rgba(30,42,40,.11); border-color:rgba(91,107,102,.34); }
         .lt-culture-card-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
-        .lt-culture-name { font-family:'Space Grotesk',sans-serif; font-size:18px; font-weight:700; margin-top:4px; overflow-wrap:anywhere; }
+        .lt-culture-name { font-family:'Libertinus Serif',Georgia,serif; font-size:18px; font-weight:700; margin-top:4px; overflow-wrap:anywhere; }
         .lt-culture-timeline { display:grid; grid-template-columns:auto minmax(54px,1fr) auto; align-items:center; gap:10px; padding:11px; border-radius:10px; background:rgba(255,255,255,.78); border:1px solid var(--paper-line); }
         .lt-culture-timeline > div:not(.lt-culture-line) { display:grid; gap:2px; }
         .lt-culture-timeline span { font-size:9px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-soft); }
@@ -3593,12 +3496,12 @@ export default function App() {
         .lt-modal-wide { width:min(940px,100%); }
         .lt-modal * { box-sizing:border-box; min-width:0; }
         .lt-maintenance-form { border:1px solid var(--border); border-radius:12px; padding:14px 14px 0; margin:2px 0 16px; background:linear-gradient(180deg, rgba(237,243,251,.72), rgba(255,255,255,.95)); }
-        .lt-maintenance-form-title { display:flex; align-items:center; gap:7px; font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:700; margin-bottom:6px; }
+        .lt-maintenance-form-title { display:flex; align-items:center; gap:7px; font-family:'Libertinus Serif',Georgia,serif; font-size:13px; font-weight:700; margin-bottom:6px; }
         @keyframes lt-modal-in { from { opacity:0; transform:translateY(18px) scale(.97); } to { opacity:1; transform:translateY(0) scale(1); } }
         .lt-modal-head {
           flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:14px;
           padding:14px 16px 14px 18px; border-bottom:1px solid var(--border);
-          background:rgba(255,255,255,.96); font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:15px;
+          background:rgba(255,255,255,.96); font-family:'Libertinus Serif',Georgia,serif; font-weight:700; font-size:15px;
         }
         .lt-modal-title { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .lt-modal-close {
@@ -3653,10 +3556,10 @@ export default function App() {
 
         .lt-material-details { display:grid; gap:16px; width:100%; max-width:100%; overflow:hidden; }
         .lt-material-details-hero { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:18px; border:1px solid var(--border); border-radius:14px; background:linear-gradient(135deg,rgba(255,255,255,.98),var(--paper)); }
-        .lt-material-details-name { font-family:'Space Grotesk',sans-serif; font-size:clamp(20px,4vw,28px); font-weight:800; line-height:1.15; margin-top:6px; overflow-wrap:anywhere; }
+        .lt-material-details-name { font-family:'Libertinus Serif',Georgia,serif; font-size:clamp(20px,4vw,28px); font-weight:800; line-height:1.15; margin-top:6px; overflow-wrap:anywhere; }
         .lt-material-details-sub { color:var(--ink-soft); font-size:12px; margin-top:5px; }
         .lt-material-details-stock { min-width:110px; padding:13px 15px; border-radius:12px; background:var(--accent); color:#fff; text-align:center; box-shadow:0 12px 28px rgba(30,42,40,.13); }
-        .lt-material-details-stock span { display:block; font-family:'JetBrains Mono',monospace; font-size:25px; font-weight:800; }
+        .lt-material-details-stock span { display:block; font-family:'Libertinus Serif',Georgia,serif; font-size:25px; font-weight:800; }
         .lt-material-details-stock small { display:block; margin-top:3px; opacity:.88; }
         .lt-material-details-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; width:100%; max-width:100%; }
         .lt-material-detail-row { min-width:0; padding:11px 12px; border:1px solid var(--paper-line); border-radius:9px; background:rgba(255,255,255,.88); transition:transform .3s cubic-bezier(.22,1,.36,1), box-shadow .3s ease, border-color .3s ease; }
@@ -3981,7 +3884,7 @@ export default function App() {
       {!isSupabaseConfigured && <SetupNotice />}
 
       {isSupabaseConfigured && loading && (
-        <div className="lt-login-wrap"><div className="lt-login-card"><div className="lt-empty">Loading LabTrack…</div></div></div>
+        <div className="lt-login-wrap"><div className="lt-login-card"><div className="lt-empty">Loading LabTrackâ€¦</div></div></div>
       )}
 
       {isSupabaseConfigured && !loading && !session && (
@@ -3990,15 +3893,12 @@ export default function App() {
             className="lt-login-card"
             onSubmit={authMode === "signup" ? handleSignUp : handleSignIn}
           >
-            <div className="lt-brand lt-brand-login">
-              <img
-                className="lt-login-logo"
-                src="/labtrack-powered-by-luntian.png"
-                alt="LabTrack powered by Luntian"
-              />
+            <div className="lt-brand">
+              <div className="lt-brand-mark"><img className="lt-brand-icon-image" src="/labtrack-green-icon.svg" alt="LabTrack" /></div>
               <div>
                 <div className="lt-brand-name">LabTrack</div>
-                <div className="lt-brand-sub">Offline-ready laboratory material monitoring</div>
+                <div className="lt-brand-sub">Smart laboratory material monitoring</div>
+                <div className="lt-brand-powered">powered by <strong>Luntian</strong></div>
               </div>
             </div>
 
@@ -4041,7 +3941,7 @@ export default function App() {
             {appMessage && <div className="lt-success">{appMessage}</div>}
             {formError && <div className="lt-error">{formError}</div>}
             <button className="lt-btn lt-btn-primary" disabled={busy}>
-              {busy ? "Please wait…" : authMode === "signup" ? "Create account" : "Log in"}
+              {busy ? "Please waitâ€¦" : authMode === "signup" ? "Create account" : "Log in"}
             </button>
 
 
@@ -4076,7 +3976,7 @@ export default function App() {
               <ChevronDown className="lt-mobile-nav-chevron" size={18} />
             </button>
             <div className="lt-sidebar-brand">
-              <img src="/labtrack-logo-mark.svg" alt="" style={{ width: 25, height: 25, borderRadius: 7, flex: "0 0 auto" }} />
+              <img className="lt-sidebar-logo-image" src="/labtrack-green-icon.svg" alt="" aria-hidden="true" />
               <div className="lt-sidebar-brand-copy">
                 <span className="lt-brand-name" style={{ fontSize: 15 }}>LabTrack</span>
                 <span className="lt-sidebar-powered">
@@ -4095,7 +3995,7 @@ export default function App() {
             <div className="lt-sidebar-foot">
               <div className="lt-user-chip">
                 <strong>{displayName}</strong>
-                {isAdmin ? "Administrator · all departments" : userDept}
+                {isAdmin ? "Administrator Â· all departments" : userDept}
               </div>
               <button className="lt-logout" onClick={handleLogout}><LogOut size={13} /> Log out</button>
             </div>
@@ -4121,7 +4021,7 @@ export default function App() {
                 <div className="lt-header">
                   <div>
                     <div className="lt-h1">{userDept}</div>
-                    <div className="lt-h1-sub">{deptMaterials.length} approved materials · {lowInDept} need attention</div>
+                    <div className="lt-h1-sub">{deptMaterials.length} approved materials Â· {lowInDept} need attention</div>
                   </div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <button className="lt-btn lt-btn-ghost" onClick={exportMaterialsCsv}><Download size={14} /> Export</button>
@@ -4180,13 +4080,13 @@ export default function App() {
                       <div className="lt-request-head">
                         <div>
                           <div className="lt-request-title">{request.name}</div>
-                          <div className="lt-request-meta">{request.category} · {materialTypeLabel(request.material_type)} · {displayQty(request.qty)} {request.unit} · threshold {displayQty(request.threshold)} · expires {request.expires_at ? fmtDate(request.expires_at) : "not set"} · {fmtTime(request.created_at)}<br /><strong>Purpose:</strong> {request.purpose || "—"}</div>
+                          <div className="lt-request-meta">{request.category} Â· {materialTypeLabel(request.material_type)} Â· {displayQty(request.qty)} {request.unit} Â· threshold {displayQty(request.threshold)} Â· expires {request.expires_at ? fmtDate(request.expires_at) : "not set"} Â· {fmtTime(request.created_at)}<br /><strong>Purpose:</strong> {request.purpose || "â€”"}</div>
                         </div>
                         <span className={`lt-tag lt-tag-${request.status}`}>{request.status}</span>
                       </div>
                       {request.status !== "pending" && (
                         <div className="lt-request-meta">
-                          <strong>{request.status === "approved" ? "Approved" : "Rejected"} by:</strong> {request.reviewer_name || "Admin"}{request.reviewed_at ? ` · ${fmtTime(request.reviewed_at)}` : ""}
+                          <strong>{request.status === "approved" ? "Approved" : "Rejected"} by:</strong> {request.reviewer_name || "Admin"}{request.reviewed_at ? ` Â· ${fmtTime(request.reviewed_at)}` : ""}
                         </div>
                       )}
                       {request.material_responsible && <div className="lt-request-meta"><strong>MR (Material Responsibility):</strong> {request.material_responsible}</div>}
@@ -4241,7 +4141,7 @@ export default function App() {
                 <div className="lt-header">
                   <div>
                     <div className="lt-h1">Support chat</div>
-                    <div className="lt-h1-sub">Talk to the admin team about {userDept} · unread messages appear as a badge</div>
+                    <div className="lt-h1-sub">Talk to the admin team about {userDept} Â· unread messages appear as a badge</div>
                   </div>
                   {browserNotificationPermission !== "granted" && browserNotificationPermission !== "unsupported" && (
                     <button className="lt-btn lt-btn-ghost" onClick={enableChatNotifications}><Bell size={14} /> Enable notifications</button>
@@ -4253,8 +4153,8 @@ export default function App() {
                   input={chatInput}
                   setInput={setChatInput}
                   onSend={sendChat}
-                  emptyText="No messages yet — send a note about supplies, delays, or safety concerns."
-                  placeholder="Write a message to admin…"
+                  emptyText="No messages yet â€” send a note about supplies, delays, or safety concerns."
+                  placeholder="Write a message to adminâ€¦"
                 />
               </>
             )}
@@ -4277,8 +4177,8 @@ export default function App() {
                   <div className="lt-stat-card"><div className="lt-stat-num">{dashboardSummary?.active_borrows ?? 0}</div><div className="lt-stat-label">Active borrows</div></div>
                   <div className="lt-stat-card"><div className="lt-stat-num" style={{ color: "var(--crit)" }}>{overdueBorrowCount}</div><div className="lt-stat-label">Overdue borrows</div></div>
                   <div className="lt-stat-card"><div className="lt-stat-num" style={{ color: maintenanceDueCount > 0 ? "var(--warn)" : undefined }}>{maintenanceDueCount}</div><div className="lt-stat-label">Maintenance due</div></div>
-                  <div className="lt-stat-card"><div className="lt-stat-num">₱{displayQty(dashboardSummary?.total_inventory_value ?? 0)}</div><div className="lt-stat-label">Inventory value</div></div>
-                  <div className="lt-stat-card"><div className="lt-stat-num">₱{displayQty(dashboardSummary?.monthly_usage_cost ?? 0)}</div><div className="lt-stat-label">Est. monthly usage cost</div></div>
+                  <div className="lt-stat-card"><div className="lt-stat-num">â‚±{displayQty(dashboardSummary?.total_inventory_value ?? 0)}</div><div className="lt-stat-label">Inventory value</div></div>
+                  <div className="lt-stat-card"><div className="lt-stat-num">â‚±{displayQty(dashboardSummary?.monthly_usage_cost ?? 0)}</div><div className="lt-stat-label">Est. monthly usage cost</div></div>
                   <div className="lt-stat-card"><div className="lt-stat-num">{dashboardSummary?.open_restock_requests ?? 0}</div><div className="lt-stat-label">Open restock requests</div></div>
                   <div className="lt-stat-card"><div className="lt-stat-num">{dashboardSummary?.supplier_count ?? 0}</div><div className="lt-stat-label">Suppliers</div></div>
                 </div>
@@ -4296,9 +4196,9 @@ export default function App() {
                     <div className="lt-attn-row" key={material.id}>
                       <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <StatusDot status={statusOf(material)} /> <strong>{material.name}</strong>
-                        <span style={{ color: "var(--ink-soft)" }}>· {material.dept} · {expiryLabel[expiryStatusOf(material)]}</span>
+                        <span style={{ color: "var(--ink-soft)" }}>Â· {material.dept} Â· {expiryLabel[expiryStatusOf(material)]}</span>
                       </span>
-                      <span className="lt-mono">{displayQty(material.qty)} {material.unit} <span style={{ color: "var(--ink-soft)" }}>/ {displayQty(material.threshold)} threshold · expires {material.expires_at ? fmtDate(material.expires_at) : "not set"}</span></span>
+                      <span className="lt-mono">{displayQty(material.qty)} {material.unit} <span style={{ color: "var(--ink-soft)" }}>/ {displayQty(material.threshold)} threshold Â· expires {material.expires_at ? fmtDate(material.expires_at) : "not set"}</span></span>
                     </div>
                   ))}
                 </div>
@@ -4340,16 +4240,16 @@ export default function App() {
                         <div>
                           <div className="lt-request-title">{request.name}</div>
                           <div className="lt-request-meta">
-                            {request.dept} · {request.category} · {materialTypeLabel(request.material_type)} · {displayQty(request.qty)} {request.unit} · threshold {displayQty(request.threshold)} · expires {request.expires_at ? fmtDate(request.expires_at) : "not set"}
-                            <br />Requested by {request.requester_name} · {fmtTime(request.created_at)}
-                            <br /><strong>Purpose:</strong> {request.purpose || "—"}
+                            {request.dept} Â· {request.category} Â· {materialTypeLabel(request.material_type)} Â· {displayQty(request.qty)} {request.unit} Â· threshold {displayQty(request.threshold)} Â· expires {request.expires_at ? fmtDate(request.expires_at) : "not set"}
+                            <br />Requested by {request.requester_name} Â· {fmtTime(request.created_at)}
+                            <br /><strong>Purpose:</strong> {request.purpose || "â€”"}
                           </div>
                         </div>
                         <span className={`lt-tag lt-tag-${request.status}`}>{request.status}</span>
                       </div>
                       {request.status !== "pending" && (
                         <div className="lt-request-meta">
-                          <strong>{request.status === "approved" ? "Approved" : "Rejected"} by:</strong> {request.reviewer_name || "Admin"}{request.reviewed_at ? ` · ${fmtTime(request.reviewed_at)}` : ""}
+                          <strong>{request.status === "approved" ? "Approved" : "Rejected"} by:</strong> {request.reviewer_name || "Admin"}{request.reviewed_at ? ` Â· ${fmtTime(request.reviewed_at)}` : ""}
                         </div>
                       )}
                       {request.material_responsible && <div className="lt-request-meta"><strong>MR (Material Responsibility):</strong> {request.material_responsible}</div>}
@@ -4396,8 +4296,8 @@ export default function App() {
                         <div>
                           <div className="lt-request-title">{account.full_name || "Unnamed account"}</div>
                           <div className="lt-request-meta">
-                            {account.email ? `${account.email} · ` : ""}{account.dept || "No department"} · created {fmtTime(account.created_at)}
-                            {account.reviewer_name && <><br />Reviewed by {account.reviewer_name} · {fmtTime(account.reviewed_at)}</>}
+                            {account.email ? `${account.email} Â· ` : ""}{account.dept || "No department"} Â· created {fmtTime(account.created_at)}
+                            {account.reviewer_name && <><br />Reviewed by {account.reviewer_name} Â· {fmtTime(account.reviewed_at)}</>}
                           </div>
                         </div>
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -4497,7 +4397,7 @@ export default function App() {
                 </div>
                 <div className="lt-note" style={{ marginBottom: 12 }}>
                   Suggested buy quantity uses average weekly usage from logs, current stock, reorder threshold, and expiry status.
-                  It is a guide only — still verify lab schedules before purchasing.
+                  It is a guide only â€” still verify lab schedules before purchasing.
                 </div>
                 <ForecastTable rows={filteredForecastRows} onCreateRestock={createRestockFromForecast} />
               </>
@@ -4805,7 +4705,7 @@ export default function App() {
                 <div className="lt-header">
                   <div>
                     <div className="lt-h1">Support inbox</div>
-                    <div className="lt-h1-sub">Conversations from every department · {totalUnreadChats} unread</div>
+                    <div className="lt-h1-sub">Conversations from every department Â· {totalUnreadChats} unread</div>
                   </div>
                   {browserNotificationPermission !== "granted" && browserNotificationPermission !== "unsupported" && (
                     <button className="lt-btn lt-btn-ghost" onClick={enableChatNotifications}><Bell size={14} /> Enable notifications</button>
@@ -4834,7 +4734,7 @@ export default function App() {
                       setInput={setChatInput}
                       onSend={sendChat}
                       emptyText="No messages from this department yet."
-                      placeholder={`Reply to ${adminActiveDept}…`}
+                      placeholder={`Reply to ${adminActiveDept}â€¦`}
                     />
                   </div>
                 </div>
@@ -4845,7 +4745,7 @@ export default function App() {
       )}
 
       {modalMode === "materialDetails" && activeMaterial && (
-        <Modal title={`Material details — ${activeMaterial.name}`} onClose={closeModal} wide>
+        <Modal title={`Material details â€” ${activeMaterial.name}`} onClose={closeModal} wide>
           <MaterialDetails material={activeMaterial} />
           <div className="lt-material-details-actions">
             <button className="lt-btn lt-btn-accent" onClick={() => openModal("use", activeMaterial)}>
@@ -4922,7 +4822,7 @@ export default function App() {
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           <button className="lt-btn lt-btn-accent" style={{ width: "100%", padding: "11px 16px" }} disabled={busy} onClick={submitCultureLog}>
-            {busy ? "Saving…" : "Save growth log"}
+            {busy ? "Savingâ€¦" : "Save growth log"}
           </button>
         </Modal>
       )}
@@ -4958,7 +4858,7 @@ export default function App() {
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           <button className="lt-btn lt-btn-danger" style={{ width: "100%", padding: "11px 16px" }} disabled={busy} onClick={clearSelectedActivity}>
-            {busy ? "Clearing…" : "Clear selected records"}
+            {busy ? "Clearingâ€¦" : "Clear selected records"}
           </button>
         </Modal>
       )}
@@ -4994,12 +4894,12 @@ export default function App() {
           </div>
           <div className="lt-field"><label className="lt-label">Notes</label><textarea className="lt-textarea" maxLength={5000} value={supplierForm.notes} onChange={(e) => setSupplierForm({ ...supplierForm, notes: e.target.value })} /></div>
           {formError && <div className="lt-error">{formError}</div>}
-          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitSupplier}>{busy ? "Sending…" : "Submit for admin approval"}</button>
+          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitSupplier}>{busy ? "Sendingâ€¦" : "Submit for admin approval"}</button>
         </Modal>
       )}
 
       {modalMode === "transfer" && activeMaterial && (
-        <Modal title={`Transfer stock — ${activeMaterial.name}`} onClose={closeModal}>
+        <Modal title={`Transfer stock â€” ${activeMaterial.name}`} onClose={closeModal}>
           <div className="lt-modal-hint">From {activeMaterial.dept}. Current stock: {displayQty(activeMaterial.qty)} {activeMaterial.unit}.</div>
           <div className="lt-field">
             <label className="lt-label">Receiving department</label>
@@ -5016,7 +4916,7 @@ export default function App() {
             <textarea className="lt-textarea" maxLength={5000} value={transferForm.reason} onChange={(e) => setTransferForm({ ...transferForm, reason: e.target.value })} placeholder="Why is this stock being transferred?" />
           </div>
           {formError && <div className="lt-error">{formError}</div>}
-          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitTransfer}>{busy ? "Transferring…" : "Transfer material"}</button>
+          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitTransfer}>{busy ? "Transferringâ€¦" : "Transfer material"}</button>
         </Modal>
       )}
 
@@ -5040,7 +4940,7 @@ export default function App() {
             <input className="lt-input" maxLength={255} value={requestForm.name} onChange={(e) => setRequestForm({ ...requestForm, name: e.target.value })} placeholder="e.g. Acetone" />
           </div>
           <div className="lt-field">
-            <label className="lt-label">MR — Material Responsibility</label>
+            <label className="lt-label">MR â€” Material Responsibility</label>
             <input
               className="lt-input"
               maxLength={255}
@@ -5086,7 +4986,7 @@ export default function App() {
             </div>
             <div className="lt-field">
               <label className="lt-label">Unit</label>
-              <input className="lt-input" maxLength={80} value={requestForm.unit} onChange={(e) => setRequestForm({ ...requestForm, unit: e.target.value })} placeholder="mL, g, units…" />
+              <input className="lt-input" maxLength={80} value={requestForm.unit} onChange={(e) => setRequestForm({ ...requestForm, unit: e.target.value })} placeholder="mL, g, unitsâ€¦" />
             </div>
           </div>
           <div className="lt-field">
@@ -5100,7 +5000,7 @@ export default function App() {
           <div className="lt-form-row">
             <div className="lt-field">
               <label className="lt-label">Estimated price per unit</label>
-              <input className="lt-input" type="number" min="0" step="0.01" value={requestForm.price_per_unit} onChange={(e) => setRequestForm({ ...requestForm, price_per_unit: e.target.value })} placeholder="₱0.00" />
+              <input className="lt-input" type="number" min="0" step="0.01" value={requestForm.price_per_unit} onChange={(e) => setRequestForm({ ...requestForm, price_per_unit: e.target.value })} placeholder="â‚±0.00" />
             </div>
             <div className="lt-field">
               <label className="lt-label">Supplier name</label>
@@ -5186,14 +5086,14 @@ export default function App() {
             onClick={modalMode === "adminAddMaterial" ? submitAdminMaterial : submitItemRequest}
           >
             {busy
-              ? (modalMode === "adminAddMaterial" ? "Adding…" : "Sending…")
+              ? (modalMode === "adminAddMaterial" ? "Addingâ€¦" : "Sendingâ€¦")
               : (modalMode === "adminAddMaterial" ? "Add directly to inventory" : "Submit for approval")}
           </button>
         </Modal>
       )}
 
       {modalMode === "use" && activeMaterial && (
-        <Modal title={`Log usage — ${activeMaterial.name}`} onClose={closeModal}>
+        <Modal title={`Log usage â€” ${activeMaterial.name}`} onClose={closeModal}>
           <div className="lt-modal-hint">Currently {displayQty(activeMaterial.qty)} {activeMaterial.unit} in stock.</div>
           <div className="lt-field">
             <label className="lt-label">Quantity used ({activeMaterial.unit})</label>
@@ -5204,12 +5104,12 @@ export default function App() {
             <textarea className="lt-textarea" maxLength={5000} value={useForm.purpose} onChange={(e) => setUseForm({ ...useForm, purpose: e.target.value })} placeholder="What was it used for?" />
           </div>
           {formError && <div className="lt-error">{formError}</div>}
-          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitUse}>{busy ? "Saving…" : "Log usage"}</button>
+          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitUse}>{busy ? "Savingâ€¦" : "Log usage"}</button>
         </Modal>
       )}
 
       {modalMode === "borrow" && activeMaterial && (
-        <Modal title={`Borrow — ${activeMaterial.name}`} onClose={closeModal}>
+        <Modal title={`Borrow â€” ${activeMaterial.name}`} onClose={closeModal}>
           <div className="lt-modal-hint">Currently {displayQty(activeMaterial.qty)} {activeMaterial.unit} in stock.</div>
           <div className="lt-field">
             <label className="lt-label">Quantity to borrow ({activeMaterial.unit})</label>
@@ -5224,12 +5124,12 @@ export default function App() {
             <textarea className="lt-textarea" maxLength={5000} value={borrowForm.purpose} onChange={(e) => setBorrowForm({ ...borrowForm, purpose: e.target.value })} placeholder="What experiment or activity needs this borrowed material?" />
           </div>
           {formError && <div className="lt-error">{formError}</div>}
-          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitBorrow}>{busy ? "Saving…" : "Borrow material"}</button>
+          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitBorrow}>{busy ? "Savingâ€¦" : "Borrow material"}</button>
         </Modal>
       )}
 
       {modalMode === "return" && activeBorrow && (
-        <Modal title={`Return — ${activeBorrow.material_name}`} onClose={closeModal}>
+        <Modal title={`Return â€” ${activeBorrow.material_name}`} onClose={closeModal}>
           <div className="lt-modal-hint">Remaining borrowed quantity: {displayQty(Number(activeBorrow.qty_borrowed || 0) - Number(activeBorrow.qty_returned || 0))} {activeBorrow.unit}</div>
           <div className="lt-field">
             <label className="lt-label">Quantity returned ({activeBorrow.unit})</label>
@@ -5240,12 +5140,12 @@ export default function App() {
             <textarea className="lt-textarea" maxLength={5000} value={returnForm.note} onChange={(e) => setReturnForm({ ...returnForm, note: e.target.value })} placeholder="Optional condition or note" />
           </div>
           {formError && <div className="lt-error">{formError}</div>}
-          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitReturn}>{busy ? "Saving…" : "Return material"}</button>
+          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitReturn}>{busy ? "Savingâ€¦" : "Return material"}</button>
         </Modal>
       )}
 
       {modalMode === "correct" && activeMaterial && (
-        <Modal title={`Correct count — ${activeMaterial.name}`} onClose={closeModal}>
+        <Modal title={`Correct count â€” ${activeMaterial.name}`} onClose={closeModal}>
           <div className="lt-modal-hint">Recorded quantity is {displayQty(activeMaterial.qty)} {activeMaterial.unit}.</div>
           <div className="lt-field">
             <label className="lt-label">Actual quantity ({activeMaterial.unit})</label>
@@ -5253,10 +5153,10 @@ export default function App() {
           </div>
           <div className="lt-field">
             <label className="lt-label">Reason for correction</label>
-            <textarea className="lt-textarea" maxLength={5000} value={correctForm.reason} onChange={(e) => setCorrectForm({ ...correctForm, reason: e.target.value })} placeholder="e.g. Recount after audit, mislabeled box…" />
+            <textarea className="lt-textarea" maxLength={5000} value={correctForm.reason} onChange={(e) => setCorrectForm({ ...correctForm, reason: e.target.value })} placeholder="e.g. Recount after audit, mislabeled boxâ€¦" />
           </div>
           {formError && <div className="lt-error">{formError}</div>}
-          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitCorrect}>{busy ? "Saving…" : "Save correction"}</button>
+          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitCorrect}>{busy ? "Savingâ€¦" : "Save correction"}</button>
         </Modal>
       )}
 
@@ -5264,11 +5164,11 @@ export default function App() {
         <Modal title={`${modalMode === "approve" ? "Approve" : "Reject"} item request`} onClose={closeModal}>
           <div className="lt-modal-hint">
             <strong>{activeRequest.name}</strong><br />
-            {activeRequest.dept} · {displayQty(activeRequest.qty)} {activeRequest.unit} · requested by {activeRequest.requester_name}
+            {activeRequest.dept} Â· {displayQty(activeRequest.qty)} {activeRequest.unit} Â· requested by {activeRequest.requester_name}
           </div>
           {modalMode === "approve" && (
             <div className="lt-field">
-              <label className="lt-label">MR — Material Responsibility</label>
+              <label className="lt-label">MR â€” Material Responsibility</label>
               <input className="lt-input" maxLength={255} value={materialResponsible} onChange={(e) => setMaterialResponsible(e.target.value)} placeholder="Full name of the person assigned material responsibility" />
               <div className="lt-field-help">Assign the person who holds responsibility for receiving, safekeeping, monitoring, and coordinating this material.</div>
             </div>
@@ -5279,9 +5179,9 @@ export default function App() {
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           {modalMode === "approve" ? (
-            <button className="lt-btn lt-btn-primary" disabled={busy} onClick={() => approveRequest(activeRequest)}>{busy ? "Approving…" : "Approve and add to stocks"}</button>
+            <button className="lt-btn lt-btn-primary" disabled={busy} onClick={() => approveRequest(activeRequest)}>{busy ? "Approvingâ€¦" : "Approve and add to stocks"}</button>
           ) : (
-            <button className="lt-btn lt-btn-danger" style={{ width: "100%", padding: "11px 16px" }} disabled={busy} onClick={() => rejectRequest(activeRequest)}>{busy ? "Rejecting…" : "Reject request"}</button>
+            <button className="lt-btn lt-btn-danger" style={{ width: "100%", padding: "11px 16px" }} disabled={busy} onClick={() => rejectRequest(activeRequest)}>{busy ? "Rejectingâ€¦" : "Reject request"}</button>
           )}
         </Modal>
       )}
@@ -5309,7 +5209,7 @@ export default function App() {
               }}
             >
               <option value="">Select equipment</option>
-              {maintenanceRows.map((row) => <option key={row.id} value={row.id}>{row.name} — {row.dept}</option>)}
+              {maintenanceRows.map((row) => <option key={row.id} value={row.id}>{row.name} â€” {row.dept}</option>)}
             </select>
           </div>
           <div className="lt-form-row">
@@ -5344,7 +5244,7 @@ export default function App() {
           </div>
           <div className="lt-field">
             <label className="lt-label">Estimated / actual cost <span className="lt-optional">(optional)</span></label>
-            <input className="lt-input" type="number" min="0" step="0.01" value={maintenanceRequestForm.cost} onChange={(e) => setMaintenanceRequestForm({ ...maintenanceRequestForm, cost: e.target.value })} placeholder="₱0.00" />
+            <input className="lt-input" type="number" min="0" step="0.01" value={maintenanceRequestForm.cost} onChange={(e) => setMaintenanceRequestForm({ ...maintenanceRequestForm, cost: e.target.value })} placeholder="â‚±0.00" />
           </div>
           <div className="lt-field">
             <label className="lt-label">Maintenance notes <span className="lt-optional">(optional)</span></label>
@@ -5352,7 +5252,7 @@ export default function App() {
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           <button className="lt-btn lt-btn-primary" disabled={busy} onClick={() => submitMaintenanceRequest(modalMode === "maintenanceAdmin")}>
-            {busy ? "Saving…" : modalMode === "maintenanceAdmin" ? "Add maintenance record" : "Submit for admin approval"}
+            {busy ? "Savingâ€¦" : modalMode === "maintenanceAdmin" ? "Add maintenance record" : "Submit for admin approval"}
           </button>
         </Modal>
       )}
@@ -5361,7 +5261,7 @@ export default function App() {
         <Modal title={`${modalMode === "approveMaintenance" ? "Approve" : "Reject"} maintenance request`} onClose={closeModal}>
           <div className="lt-modal-hint">
             <strong>{activeMaintenanceRequest.material_name}</strong><br />
-            {activeMaintenanceRequest.dept} · {activeMaintenanceRequest.maintenance_type || "Maintenance"} · requested by {activeMaintenanceRequest.requester_name || "Unknown user"}
+            {activeMaintenanceRequest.dept} Â· {activeMaintenanceRequest.maintenance_type || "Maintenance"} Â· requested by {activeMaintenanceRequest.requester_name || "Unknown user"}
             <br />Maintenance date: {activeMaintenanceRequest.maintenance_date ? fmtDate(activeMaintenanceRequest.maintenance_date) : "Not set"}
           </div>
           <div className="lt-field">
@@ -5370,15 +5270,15 @@ export default function App() {
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           {modalMode === "approveMaintenance" ? (
-            <button className="lt-btn lt-btn-primary" disabled={busy} onClick={() => approveMaintenanceRequest(activeMaintenanceRequest)}>{busy ? "Approving…" : "Approve and update equipment"}</button>
+            <button className="lt-btn lt-btn-primary" disabled={busy} onClick={() => approveMaintenanceRequest(activeMaintenanceRequest)}>{busy ? "Approvingâ€¦" : "Approve and update equipment"}</button>
           ) : (
-            <button className="lt-btn lt-btn-danger" style={{ width: "100%", padding: "11px 16px" }} disabled={busy} onClick={() => rejectMaintenanceRequest(activeMaintenanceRequest)}>{busy ? "Rejecting…" : "Reject maintenance request"}</button>
+            <button className="lt-btn lt-btn-danger" style={{ width: "100%", padding: "11px 16px" }} disabled={busy} onClick={() => rejectMaintenanceRequest(activeMaintenanceRequest)}>{busy ? "Rejectingâ€¦" : "Reject maintenance request"}</button>
           )}
         </Modal>
       )}
 
       {modalMode === "maintenance" && activeMaterial && (
-        <Modal title={`Maintenance — ${activeMaterial.name}`} onClose={closeModal}>
+        <Modal title={`Maintenance â€” ${activeMaterial.name}`} onClose={closeModal}>
           <div className="lt-modal-hint">Update equipment/material condition and maintenance schedule.</div>
           <div className="lt-field">
             <label className="lt-label">Condition</label>
@@ -5399,7 +5299,7 @@ export default function App() {
             <textarea className="lt-textarea" maxLength={1000} value={maintenanceForm.maintenance_note} onChange={(e) => setMaintenanceForm({ ...maintenanceForm, maintenance_note: e.target.value })} placeholder="Cleaning, calibration, repair notes..." />
           </div>
           {formError && <div className="lt-error">{formError}</div>}
-          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitMaintenance}>{busy ? "Saving…" : "Save maintenance"}</button>
+          <button className="lt-btn lt-btn-primary" disabled={busy} onClick={submitMaintenance}>{busy ? "Savingâ€¦" : "Save maintenance"}</button>
         </Modal>
       )}
 
@@ -5414,7 +5314,7 @@ export default function App() {
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           <button className="lt-btn lt-btn-danger" style={{ width: "100%", padding: "11px 16px" }} disabled={busy} onClick={() => deleteMaterial(activeMaterial)}>
-            {busy ? "Deleting…" : "Delete material"}
+            {busy ? "Deletingâ€¦" : "Delete material"}
           </button>
         </Modal>
       )}
@@ -5426,11 +5326,11 @@ export default function App() {
             This action cannot be undone.
           </div>
           <div className="lt-modal-hint" style={{ margin: "14px 0" }}>
-            {activeLog.type} · {displayQty(activeLog.qty)} · {activeLog.detail || "No note"}
+            {activeLog.type} Â· {displayQty(activeLog.qty)} Â· {activeLog.detail || "No note"}
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           <button className="lt-btn lt-btn-danger" style={{ width: "100%", padding: "11px 16px" }} disabled={busy} onClick={() => deleteLog(activeLog)}>
-            {busy ? "Deleting…" : "Delete log permanently"}
+            {busy ? "Deletingâ€¦" : "Delete log permanently"}
           </button>
         </Modal>
       )}
@@ -5446,10 +5346,12 @@ export default function App() {
           </div>
           {formError && <div className="lt-error">{formError}</div>}
           <button className="lt-btn lt-btn-danger" style={{ width: "100%", padding: "11px 16px" }} disabled={busy} onClick={() => deleteAccount(activeAccount)}>
-            {busy ? "Deleting…" : "Delete account"}
+            {busy ? "Deletingâ€¦" : "Delete account"}
           </button>
         </Modal>
       )}
     </div>
   );
 }
+
+

@@ -1,0 +1,585 @@
+﻿/* LabTrack Website UI Enhancer
+   Generated for the existing LabTrack React/Vite website.
+   This file is intentionally visual only. It does not alter Appwrite logic. */
+
+:root {
+  --lt-motion-fast: 180ms;
+  --lt-motion-normal: 360ms;
+  --lt-motion-slow: 620ms;
+  --lt-motion-curve: cubic-bezier(.2, .8, .2, 1);
+  --lt-glass-border: rgba(255, 255, 255, .66);
+  --lt-green-shadow: rgba(37, 110, 71, .15);
+  --lt-scroll-progress: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  scrollbar-color: rgba(58, 131, 71, .56) rgba(230, 239, 231, .72);
+}
+
+body {
+  min-height: 100vh;
+  background: #edf5ef;
+}
+
+::selection {
+  color: #16352a;
+  background: rgba(137, 226, 163, .42);
+}
+
+/* Neutralize older reveal rules when this enhancement is installed. */
+html body #root .lt-scroll-reveal,
+html body #root .lt-scroll-reveal.lt-reveal-visible {
+  opacity: 1 !important;
+  filter: none !important;
+  transform: none !important;
+}
+
+/* Soft, layered green background inspired by the supplied reference. */
+html body #root .lt-root {
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+  background:
+    radial-gradient(58rem 42rem at 8% -2%, rgba(123, 226, 145, .50), transparent 64%),
+    radial-gradient(42rem 36rem at 77% 4%, rgba(166, 236, 196, .36), transparent 65%),
+    radial-gradient(38rem 32rem at 58% 78%, rgba(119, 205, 170, .22), transparent 70%),
+    linear-gradient(180deg, #f8fcf7 0%, #f3f8f2 48%, #ebf4ed 100%) !important;
+  background-attachment: fixed !important;
+}
+
+html body #root .lt-root::before,
+html body #root .lt-root::after {
+  content: "";
+  position: fixed;
+  inset: -18vmax;
+  z-index: 0;
+  pointer-events: none;
+  transform: translate3d(0, 0, 0);
+}
+
+html body #root .lt-root::before {
+  opacity: .78;
+  background:
+    radial-gradient(circle at 22% 28%, rgba(96, 206, 130, .25), transparent 26%),
+    radial-gradient(circle at 68% 18%, rgba(114, 209, 175, .22), transparent 24%),
+    radial-gradient(circle at 72% 72%, rgba(190, 232, 201, .28), transparent 28%);
+  animation: ltGradientDrift 22s ease-in-out infinite alternate;
+}
+
+html body #root .lt-root::after {
+  inset: 0;
+  opacity: .22;
+  background-image:
+    linear-gradient(rgba(68, 116, 82, .055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(68, 116, 82, .045) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,.8), transparent 82%);
+}
+
+html body #root .lt-root > * {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes ltGradientDrift {
+  0% {
+    transform: translate3d(-1.5%, -1%, 0) scale(1);
+    opacity: .66;
+  }
+  50% {
+    transform: translate3d(2%, 1.5%, 0) scale(1.035);
+    opacity: .84;
+  }
+  100% {
+    transform: translate3d(-.5%, 2.2%, 0) scale(1.015);
+    opacity: .72;
+  }
+}
+
+/* Sidebar and login glass treatment. */
+html body #root .lt-root .lt-sidebar {
+  background:
+    linear-gradient(180deg, rgba(247, 252, 247, .88), rgba(239, 247, 241, .80)) !important;
+  border-right-color: rgba(116, 153, 125, .22) !important;
+  box-shadow: 14px 0 46px rgba(43, 88, 58, .055);
+  backdrop-filter: blur(18px) saturate(1.08);
+  -webkit-backdrop-filter: blur(18px) saturate(1.08);
+}
+
+html body #root .lt-root .lt-sidebar-foot {
+  background: linear-gradient(180deg, rgba(246, 251, 246, .78), rgba(239, 247, 241, .94)) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+html body #root .lt-root .lt-login-wrap {
+  background:
+    radial-gradient(circle at 50% 8%, rgba(127, 221, 151, .24), transparent 40%),
+    transparent;
+}
+
+html body #root .lt-root .lt-login-card,
+html body #root .lt-root .lt-modal {
+  border: 1px solid var(--lt-glass-border) !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, .92), rgba(246, 252, 247, .76)) !important;
+  box-shadow:
+    0 30px 90px rgba(27, 77, 46, .14),
+    inset 0 1px 0 rgba(255, 255, 255, .84) !important;
+  backdrop-filter: blur(22px) saturate(1.12);
+  -webkit-backdrop-filter: blur(22px) saturate(1.12);
+}
+
+/* Main page surfaces. */
+html body #root .lt-root .lt-main {
+  position: relative;
+}
+
+html body #root .lt-root .lt-header {
+  padding: 6px 2px 10px;
+}
+
+html body #root .lt-root .lt-h1 {
+  background: linear-gradient(105deg, #183c2b, #2f7650 58%, #1f6f78);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+html body #root .lt-root :is(
+  .lt-card,
+  .lt-stat-card,
+  .lt-request-card,
+  .lt-culture-card,
+  .lt-culture-summary,
+  .lt-table-wrap,
+  .lt-chat-wrap,
+  .lt-conv-list,
+  .lt-maintenance-form,
+  .lt-material-details-hero,
+  .lt-note,
+  .lt-search-line
+) {
+  border-color: rgba(120, 151, 126, .25) !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, .88), rgba(247, 252, 248, .70)) !important;
+  box-shadow:
+    0 12px 34px rgba(35, 80, 50, .065),
+    inset 0 1px 0 rgba(255, 255, 255, .78);
+  backdrop-filter: blur(13px) saturate(1.05);
+  -webkit-backdrop-filter: blur(13px) saturate(1.05);
+}
+
+html body #root .lt-root :is(
+  .lt-card,
+  .lt-stat-card,
+  .lt-request-card,
+  .lt-culture-card,
+  .lt-table-wrap,
+  .lt-chat-wrap,
+  .lt-conv-list,
+  .lt-maintenance-form,
+  .lt-note,
+  .lt-add-card
+) {
+  border-radius: 14px !important;
+  transition:
+    transform var(--lt-motion-normal) var(--lt-motion-curve),
+    box-shadow var(--lt-motion-normal) var(--lt-motion-curve),
+    border-color var(--lt-motion-fast) ease,
+    background-color var(--lt-motion-fast) ease !important;
+  transform-origin: center;
+  backface-visibility: hidden;
+}
+
+html body #root .lt-root :is(
+  .lt-card,
+  .lt-stat-card,
+  .lt-request-card,
+  .lt-culture-card,
+  .lt-table-wrap,
+  .lt-chat-wrap,
+  .lt-conv-list,
+  .lt-maintenance-form,
+  .lt-note,
+  .lt-add-card
+):hover {
+  transform: translate3d(0, -5px, 0) scale(1.008) !important;
+  border-color: rgba(63, 139, 86, .38) !important;
+  box-shadow:
+    0 23px 54px rgba(35, 80, 50, .12),
+    inset 0 1px 0 rgba(255, 255, 255, .9) !important;
+}
+
+html body #root .lt-root .lt-add-card {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.54), rgba(224,244,229,.47)) !important;
+  border: 1px dashed rgba(54, 134, 79, .42) !important;
+}
+
+/* Inputs, controls, tabs and buttons. */
+html body #root .lt-root :is(.lt-input, .lt-select, .lt-textarea, .lt-search-line) {
+  border-radius: 11px !important;
+  border-color: rgba(101, 143, 111, .28) !important;
+  background: rgba(255, 255, 255, .76) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .84);
+  transition:
+    transform var(--lt-motion-fast) ease,
+    border-color var(--lt-motion-fast) ease,
+    box-shadow var(--lt-motion-fast) ease,
+    background-color var(--lt-motion-fast) ease !important;
+}
+
+html body #root .lt-root :is(.lt-input, .lt-select, .lt-textarea):focus {
+  transform: translate3d(0, -1px, 0);
+  border-color: rgba(38, 125, 70, .58) !important;
+  box-shadow:
+    0 0 0 4px rgba(75, 176, 105, .13),
+    0 10px 24px rgba(37, 93, 55, .075) !important;
+  background: rgba(255, 255, 255, .96) !important;
+}
+
+html body #root .lt-root .lt-btn {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 10px !important;
+  transition:
+    transform var(--lt-motion-fast) var(--lt-motion-curve),
+    box-shadow var(--lt-motion-fast) var(--lt-motion-curve),
+    filter var(--lt-motion-fast) ease !important;
+}
+
+html body #root .lt-root :is(.lt-btn-primary, .lt-btn-accent) {
+  background: linear-gradient(135deg, #2f8c55, #1f7561 58%, #1f6f78) !important;
+  box-shadow: 0 10px 24px rgba(35, 111, 74, .20);
+}
+
+html body #root .lt-root .lt-btn:hover {
+  transform: translate3d(0, -2px, 0) scale(1.018) !important;
+  box-shadow: 0 14px 30px rgba(35, 90, 55, .16) !important;
+}
+
+html body #root .lt-root .lt-btn:active {
+  transform: translate3d(0, 0, 0) scale(.975) !important;
+}
+
+html body #root .lt-root :is(.lt-sidebar-tab, .lt-subtab, .lt-auth-switch button) {
+  transition:
+    transform var(--lt-motion-fast) var(--lt-motion-curve),
+    color var(--lt-motion-fast) ease,
+    background-color var(--lt-motion-fast) ease,
+    box-shadow var(--lt-motion-fast) ease !important;
+}
+
+html body #root .lt-root .lt-sidebar-tab {
+  margin: 2px 9px;
+  width: calc(100% - 18px);
+  border-radius: 10px;
+}
+
+html body #root .lt-root .lt-sidebar-tab:hover {
+  transform: translate3d(4px, 0, 0) !important;
+  background: rgba(207, 236, 215, .45);
+}
+
+html body #root .lt-root .lt-sidebar-tab.active {
+  background:
+    linear-gradient(90deg, rgba(164, 224, 180, .56), rgba(214, 241, 222, .32)) !important;
+  box-shadow:
+    0 8px 22px rgba(48, 119, 72, .09),
+    inset 0 1px 0 rgba(255, 255, 255, .62);
+}
+
+html body #root .lt-root .lt-sidebar-tab.active::before {
+  border-radius: 999px;
+  top: 7px !important;
+  bottom: 7px !important;
+  left: -1px !important;
+  width: 4px !important;
+  box-shadow: 0 0 14px rgba(45, 151, 79, .36);
+}
+
+/* Tables become lighter and more tactile without altering layout. */
+html body #root .lt-root .lt-table th {
+  background: rgba(232, 243, 234, .72) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+html body #root .lt-root .lt-table tbody tr {
+  transition:
+    transform var(--lt-motion-fast) ease,
+    background-color var(--lt-motion-fast) ease !important;
+}
+
+html body #root .lt-root .lt-table tbody tr:hover {
+  background: rgba(224, 242, 229, .48) !important;
+}
+
+/* Scroll reveal. Content remains visible if JavaScript is disabled. */
+html.lt-motion-enabled body #root .lt-motion-item {
+  opacity: .18;
+  transform: translate3d(0, 24px, 0) scale(.987);
+  transition:
+    opacity var(--lt-motion-slow) var(--lt-motion-curve) var(--lt-motion-delay, 0ms),
+    transform var(--lt-motion-slow) var(--lt-motion-curve) var(--lt-motion-delay, 0ms),
+    filter var(--lt-motion-slow) ease var(--lt-motion-delay, 0ms);
+  will-change: opacity, transform;
+}
+
+html.lt-motion-enabled body #root .lt-motion-item.lt-in-view {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  filter: none;
+  will-change: auto;
+}
+
+html.lt-motion-enabled body #root .lt-motion-item.lt-out-above {
+  opacity: .32;
+  transform: translate3d(0, -14px, 0) scale(.993);
+}
+
+html.lt-motion-enabled body #root .lt-motion-item.lt-out-below {
+  opacity: .14;
+  transform: translate3d(0, 24px, 0) scale(.987);
+}
+
+/* Toggle/tab pulse. */
+.lt-toggle-pulse {
+  animation: ltTogglePulse 430ms var(--lt-motion-curve);
+}
+
+@keyframes ltTogglePulse {
+  0% { transform: scale(.97); }
+  48% { transform: scale(1.035); }
+  100% { transform: scale(1); }
+}
+
+/* Ripple appended by the enhancement script. */
+.lt-ripple {
+  position: absolute;
+  z-index: -1;
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .45);
+  transform: translate(-50%, -50%) scale(0);
+  animation: ltRipple 620ms ease-out forwards;
+}
+
+@keyframes ltRipple {
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(18);
+  }
+}
+
+/* Small scroll-state polish. */
+body.lt-page-scrolled #root .lt-sidebar {
+  box-shadow: 16px 0 52px rgba(37, 83, 52, .08);
+}
+
+body.lt-page-scrolled #root .lt-header {
+  filter: saturate(1.04);
+}
+
+/* Elegant custom scrollbars. */
+html body #root .lt-root *::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+html body #root .lt-root *::-webkit-scrollbar-track {
+  background: rgba(230, 239, 231, .55);
+  border-radius: 999px;
+}
+
+html body #root .lt-root *::-webkit-scrollbar-thumb {
+  border: 2px solid rgba(240, 247, 241, .84);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(69, 151, 94, .66), rgba(31, 111, 120, .54));
+}
+
+/* Mobile tuning keeps animation smooth on lower-powered devices. */
+@media (max-width: 860px) {
+  html body #root .lt-root {
+    background-attachment: scroll !important;
+  }
+
+  html body #root .lt-root::before {
+    animation-duration: 30s;
+    opacity: .58;
+  }
+
+  html body #root .lt-root .lt-sidebar {
+    border-right: 0 !important;
+    border-bottom: 1px solid rgba(116, 153, 125, .22);
+    box-shadow: 0 12px 34px rgba(43, 88, 58, .07);
+  }
+
+  html body #root .lt-root :is(
+    .lt-card,
+    .lt-stat-card,
+    .lt-request-card,
+    .lt-culture-card,
+    .lt-table-wrap,
+    .lt-chat-wrap,
+    .lt-conv-list,
+    .lt-maintenance-form,
+    .lt-note
+  ):hover {
+    transform: translate3d(0, -2px, 0) scale(1.002) !important;
+  }
+}
+
+@media (max-width: 520px) {
+  html body #root .lt-root::after {
+    background-size: 28px 28px;
+    opacity: .15;
+  }
+
+  html body #root .lt-root :is(
+    .lt-card,
+    .lt-stat-card,
+    .lt-request-card,
+    .lt-culture-card,
+    .lt-table-wrap,
+    .lt-chat-wrap,
+    .lt-conv-list,
+    .lt-maintenance-form,
+    .lt-note
+  ) {
+    backdrop-filter: blur(8px) saturate(1.03);
+    -webkit-backdrop-filter: blur(8px) saturate(1.03);
+  }
+}
+
+/* Accessibility: honor reduced-motion preferences. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  html body #root .lt-root::before {
+    animation: none !important;
+  }
+
+  html.lt-motion-enabled body #root .lt-motion-item,
+  html.lt-motion-enabled body #root .lt-motion-item.lt-in-view,
+  html.lt-motion-enabled body #root .lt-motion-item.lt-out-above,
+  html.lt-motion-enabled body #root .lt-motion-item.lt-out-below {
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .lt-toggle-pulse,
+  .lt-ripple {
+    animation: none !important;
+  }
+}
+
+/* LABTRACK GREEN ACCENT FIX START
+   Removes the remaining purple indicators and standardizes sidebar scrolling. */
+
+html body #root .lt-root {
+  --lt-accent-green: #2E7D55;
+  --lt-accent-mint: #43B581;
+  --lt-accent-pale: #A8E6CF;
+}
+
+/* The selected navigation marker was still inheriting the old purple. */
+html body #root .lt-root .lt-sidebar-tab.active::before,
+html body #root .lt-root .lt-sidebar-tab[aria-current="page"]::before {
+  background: linear-gradient(180deg, #43B581 0%, #2E7D55 100%) !important;
+  border: 0 !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, .38),
+    0 0 14px rgba(67, 181, 129, .42) !important;
+}
+
+/* Cover native and custom sidebar scroll containers. */
+html body #root .lt-root :is(
+  .lt-sidebar,
+  .lt-sidebar-nav,
+  .lt-sidebar-menu,
+  .lt-nav-scroll,
+  .lt-sidebar-scroll
+) {
+  scrollbar-color: #62AD7B rgba(226, 241, 230, .62) !important;
+  scrollbar-width: thin;
+}
+
+html body #root .lt-root :is(
+  .lt-sidebar,
+  .lt-sidebar-nav,
+  .lt-sidebar-menu,
+  .lt-nav-scroll,
+  .lt-sidebar-scroll
+)::-webkit-scrollbar {
+  width: 9px !important;
+}
+
+html body #root .lt-root :is(
+  .lt-sidebar,
+  .lt-sidebar-nav,
+  .lt-sidebar-menu,
+  .lt-nav-scroll,
+  .lt-sidebar-scroll
+)::-webkit-scrollbar-track {
+  border-radius: 999px !important;
+  background: rgba(226, 241, 230, .60) !important;
+}
+
+html body #root .lt-root :is(
+  .lt-sidebar,
+  .lt-sidebar-nav,
+  .lt-sidebar-menu,
+  .lt-nav-scroll,
+  .lt-sidebar-scroll
+)::-webkit-scrollbar-thumb {
+  min-height: 54px;
+  border: 2px solid rgba(238, 248, 240, .90) !important;
+  border-radius: 999px !important;
+  background: linear-gradient(180deg, #73BE88 0%, #3E9863 100%) !important;
+  box-shadow: inset 0 0 0 1px rgba(27, 105, 67, .10) !important;
+}
+
+html body #root .lt-root :is(
+  .lt-sidebar,
+  .lt-sidebar-nav,
+  .lt-sidebar-menu,
+  .lt-nav-scroll,
+  .lt-sidebar-scroll
+)::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #57B678 0%, #287D52 100%) !important;
+}
+
+/* Remove purple focus/selection residue from the sidebar. */
+html body #root .lt-root .lt-sidebar :is(
+  button,
+  a,
+  [role="button"]
+):focus-visible {
+  outline: 3px solid rgba(67, 181, 129, .28) !important;
+  outline-offset: 2px;
+}
+
+html body #root .lt-root .lt-brand-mark {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html body #root .lt-root .lt-brand-logo-image {
+  width: 36px !important;
+  height: 36px !important;
+  object-fit: contain;
+  filter: none !important;
+}
+
+/* LABTRACK GREEN ACCENT FIX END */
+

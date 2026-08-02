@@ -1,0 +1,241 @@
+/* LABTRACK FINAL GREEN + LIBERTINUS SERIF FIX
+   Visual overrides only. Database and Appwrite behavior are unchanged. */
+
+:root {
+  --lt-final-green: #2E7D55;
+  --lt-final-green-dark: #1F6847;
+  --lt-final-mint: #43B581;
+  --lt-final-pale: #DDF3E5;
+  --lt-final-paper: #F1FAF3;
+}
+
+/* Apply Libertinus Serif across the entire website, including controls. */
+html body #root .lt-root,
+html body #root .lt-root *,
+html body #root .lt-root input,
+html body #root .lt-root textarea,
+html body #root .lt-root select,
+html body #root .lt-root button,
+html body #root .lt-root option {
+  font-family: "Libertinus Serif", Georgia, "Times New Roman", serif !important;
+}
+
+html body #root .lt-root :is(
+  .lt-brand-name,
+  .lt-h1,
+  .lt-section-title,
+  h1,
+  h2,
+  h3,
+  h4,
+  strong,
+  th,
+  button
+) {
+  letter-spacing: .005em !important;
+}
+
+html body #root .lt-root .lt-h1 {
+  font-weight: 700 !important;
+}
+
+/* Override all administrator/purple accent variables with the green system. */
+html body #root .lt-root {
+  --admin-accent: var(--lt-final-green) !important;
+  --admin-accent-soft: var(--lt-final-pale) !important;
+  --user-accent: var(--lt-final-green) !important;
+  --user-accent-soft: var(--lt-final-pale) !important;
+  --accent: var(--lt-final-green) !important;
+  --accent-soft: var(--lt-final-pale) !important;
+}
+
+/* Login and sidebar branding. */
+html body #root .lt-root .lt-brand-mark {
+  width: 48px !important;
+  height: 48px !important;
+  padding: 0 !important;
+  border: 1px solid rgba(46, 125, 85, .16) !important;
+  border-radius: 14px !important;
+  color: transparent !important;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.94), rgba(223,246,231,.82)) !important;
+  box-shadow:
+    0 10px 24px rgba(38, 112, 72, .14),
+    inset 0 1px 0 rgba(255,255,255,.92) !important;
+  overflow: hidden;
+}
+
+html body #root .lt-root .lt-brand-icon-image,
+html body #root .lt-root .lt-sidebar-logo-image {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+}
+
+html body #root .lt-root .lt-sidebar-logo-image {
+  width: 30px !important;
+  height: 30px !important;
+  border-radius: 9px;
+  box-shadow: 0 7px 18px rgba(32, 105, 67, .14);
+}
+
+html body #root .lt-root .lt-brand-mark > svg {
+  display: none !important;
+}
+
+html body #root .lt-root .lt-brand-powered {
+  margin-top: 2px;
+  color: #577064;
+  font-size: 12px;
+  line-height: 1.15;
+}
+
+html body #root .lt-root .lt-brand-powered strong {
+  color: var(--lt-final-green-dark);
+  font-weight: 700;
+}
+
+html body #root .lt-root .lt-login-card .lt-brand {
+  align-items: center;
+  margin-bottom: 22px;
+}
+
+/* Replace active pills, buttons, links, tags and add cards. */
+html body #root .lt-root :is(
+  .lt-subtab.active,
+  .lt-auth-switch button.active,
+  .lt-btn-primary,
+  .lt-btn-accent
+) {
+  color: #fff !important;
+  border-color: var(--lt-final-green) !important;
+  background:
+    linear-gradient(135deg, var(--lt-final-mint), var(--lt-final-green) 72%) !important;
+  box-shadow: 0 9px 22px rgba(46, 125, 85, .18) !important;
+}
+
+html body #root .lt-root :is(
+  .lt-link-btn,
+  .lt-add-card,
+  .lt-add-card *,
+  .lt-tag-admin
+) {
+  color: var(--lt-final-green) !important;
+}
+
+html body #root .lt-root .lt-tag-admin {
+  background: var(--lt-final-pale) !important;
+}
+
+html body #root .lt-root .lt-add-card {
+  border-color: rgba(46, 125, 85, .34) !important;
+}
+
+html body #root .lt-root .lt-add-card:hover {
+  border-color: rgba(46, 125, 85, .58) !important;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.78), rgba(219,244,228,.72)) !important;
+}
+
+/* Selected sidebar indicator and sidebar focus states. */
+html body #root .lt-root .lt-sidebar-tab.active::before,
+html body #root .lt-root .lt-sidebar-tab[aria-current="page"]::before {
+  background:
+    linear-gradient(180deg, var(--lt-final-mint), var(--lt-final-green)) !important;
+  box-shadow: 0 0 14px rgba(67, 181, 129, .38) !important;
+}
+
+html body #root .lt-root .lt-sidebar-tab.active {
+  color: #183F2E !important;
+  background:
+    linear-gradient(90deg, rgba(147, 223, 168, .52), rgba(225, 246, 231, .35)) !important;
+}
+
+html body #root .lt-root .lt-sidebar :is(button, a, [role="button"]):focus-visible,
+html body #root .lt-root :is(button, input, textarea, select):focus-visible {
+  outline: 3px solid rgba(67, 181, 129, .26) !important;
+  outline-offset: 2px;
+}
+
+/* Green sidebar scrollbar, including Firefox and Chromium/WebView. */
+html body #root .lt-root :is(
+  .lt-sidebar,
+  .lt-sidebar-nav,
+  .lt-sidebar-menu,
+  .lt-nav-scroll,
+  .lt-sidebar-scroll
+) {
+  scrollbar-color: #58A874 rgba(224, 241, 229, .62) !important;
+  scrollbar-width: thin;
+}
+
+html body #root .lt-root :is(
+  .lt-sidebar,
+  .lt-sidebar-nav,
+  .lt-sidebar-menu,
+  .lt-nav-scroll,
+  .lt-sidebar-scroll
+)::-webkit-scrollbar {
+  width: 9px !important;
+}
+
+html body #root .lt-root :is(
+  .lt-sidebar,
+  .lt-sidebar-nav,
+  .lt-sidebar-menu,
+  .lt-nav-scroll,
+  .lt-sidebar-scroll
+)::-webkit-scrollbar-track {
+  border-radius: 999px !important;
+  background: rgba(224, 241, 229, .62) !important;
+}
+
+html body #root .lt-root :is(
+  .lt-sidebar,
+  .lt-sidebar-nav,
+  .lt-sidebar-menu,
+  .lt-nav-scroll,
+  .lt-sidebar-scroll
+)::-webkit-scrollbar-thumb {
+  min-height: 52px;
+  border: 2px solid rgba(240, 250, 243, .92) !important;
+  border-radius: 999px !important;
+  background:
+    linear-gradient(180deg, #73BE88 0%, #3C9360 100%) !important;
+}
+
+/* Defensive removal of old purple foregrounds on common interactive areas. */
+html body #root .lt-root :is(
+  .lt-subtabs,
+  .lt-toolbar,
+  .lt-grid,
+  .lt-card,
+  .lt-login-card,
+  .lt-sidebar
+) [style*="107, 63, 160"],
+html body #root .lt-root :is(
+  .lt-subtabs,
+  .lt-toolbar,
+  .lt-grid,
+  .lt-card,
+  .lt-login-card,
+  .lt-sidebar
+) [style*="#6B3FA0"] {
+  color: var(--lt-final-green) !important;
+  border-color: var(--lt-final-green) !important;
+}
+
+/* Keep transitions smooth after the font change. */
+html body #root .lt-root :is(
+  .lt-subtab,
+  .lt-sidebar-tab,
+  .lt-btn,
+  .lt-add-card,
+  .lt-card,
+  .lt-input,
+  .lt-select,
+  .lt-textarea
+) {
+  transition-timing-function: cubic-bezier(.2, .8, .2, 1) !important;
+}

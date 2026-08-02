@@ -1,6 +1,19 @@
-  node_modules/
+node_modules/
 dist/
 .env
 .env.local
-*.log
+.env.production
+.vercel/
 .DS_Store
+build/
+coverage/
+.idea/
+.vscode/
+.labtrack-ui-backup/
+.labtrack-green-fix-backup/
+.labtrack-final-green-serif-backup/
+LabTrack_Backups/
+.env.*.local
+*.log
+*.tmp
+*.bak

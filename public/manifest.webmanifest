@@ -1,24 +1,22 @@
-{
-  "name": "LabTrack powered by Luntian",
-  "short_name": "LabTrack",
-  "description": "Offline-ready laboratory material monitoring",
-  "start_url": "/",
-  "scope": "/",
-  "display": "standalone",
-  "background_color": "#F6F7F3",
-  "theme_color": "#1F6F78",
-  "icons": [
-    {
-      "src": "/icons/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icons/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
-  ]
+﻿{
+    "name":  "LabTrack",
+    "short_name":  "LabTrack",
+    "start_url":  "/",
+    "display":  "standalone",
+    "theme_color":  "#2E7D55",
+    "background_color":  "#F1FAF3",
+    "icons":  [
+                  {
+                      "src":  "/icons/icon-192.png",
+                      "sizes":  "192x192",
+                      "type":  "image/png",
+                      "purpose":  "any maskable"
+                  },
+                  {
+                      "src":  "/icons/icon-512.png",
+                      "sizes":  "512x512",
+                      "type":  "image/png",
+                      "purpose":  "any maskable"
+                  }
+              ]
 }

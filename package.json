@@ -11,6 +11,7 @@
     "preflight": "node scripts/preflight.mjs"
   },
   "dependencies": {
+    "@fontsource/libertinus-serif": "^5.3.0",
     "appwrite": "26.2.0",
     "dotenv": "16.6.1",
     "lucide-react": "0.383.0",
