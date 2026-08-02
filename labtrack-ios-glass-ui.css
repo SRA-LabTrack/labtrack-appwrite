@@ -1,0 +1,622 @@
+/*
+  LabTrack iOS Glass UI
+  Visual-only enhancement layer. Imported after the existing LabTrack styles so
+  the Appwrite/Supabase logic, layouts, forms, tables, and records remain intact.
+*/
+
+:root {
+  --lt-glass-ink: #173d2a;
+  --lt-glass-ink-soft: #48675a;
+  --lt-glass-green: #2e7d55;
+  --lt-glass-green-deep: #155d42;
+  --lt-glass-teal: #1f7777;
+  --lt-glass-mint: #b9f0cf;
+  --lt-glass-surface: rgba(255, 255, 255, 0.76);
+  --lt-glass-surface-strong: rgba(255, 255, 255, 0.9);
+  --lt-glass-border: rgba(255, 255, 255, 0.72);
+  --lt-glass-line: rgba(39, 105, 72, 0.18);
+  --lt-glass-shadow: 0 18px 48px rgba(29, 88, 57, 0.11);
+  --lt-glass-shadow-hover: 0 26px 68px rgba(24, 89, 58, 0.19);
+  --lt-glass-ease: cubic-bezier(0.2, 0.82, 0.2, 1);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  background: #edf8f0;
+}
+
+body {
+  color: var(--lt-glass-ink);
+}
+
+/* Animated mint laboratory atmosphere behind every section. */
+html body #root .lt-root {
+  isolation: isolate;
+  color: var(--lt-glass-ink) !important;
+  background:
+    radial-gradient(circle at 12% 8%, rgba(111, 224, 154, 0.32), transparent 32%),
+    radial-gradient(circle at 92% 18%, rgba(92, 210, 190, 0.22), transparent 34%),
+    radial-gradient(circle at 68% 92%, rgba(180, 242, 201, 0.3), transparent 35%),
+    linear-gradient(135deg, #f8fcf9 0%, #eef8f1 45%, #eaf6ef 100%) !important;
+  background-attachment: fixed !important;
+  overflow-x: clip;
+}
+
+html body #root .lt-root::before,
+html body #root .lt-root::after {
+  content: "";
+  position: fixed;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 999px;
+  filter: blur(2px);
+  opacity: 0.72;
+  will-change: transform;
+}
+
+html body #root .lt-root::before {
+  width: min(46vw, 660px);
+  aspect-ratio: 1;
+  left: -14vw;
+  top: 9vh;
+  background: radial-gradient(circle, rgba(76, 204, 130, 0.2), rgba(76, 204, 130, 0) 69%);
+  animation: lt-glass-orbit-a 18s ease-in-out infinite alternate;
+}
+
+html body #root .lt-root::after {
+  width: min(42vw, 620px);
+  aspect-ratio: 1;
+  right: -12vw;
+  bottom: -8vh;
+  background: radial-gradient(circle, rgba(38, 157, 146, 0.18), rgba(38, 157, 146, 0) 70%);
+  animation: lt-glass-orbit-b 22s ease-in-out infinite alternate;
+}
+
+@keyframes lt-glass-orbit-a {
+  from { transform: translate3d(0, -2%, 0) scale(0.94); }
+  to { transform: translate3d(15vw, 12vh, 0) scale(1.08); }
+}
+
+@keyframes lt-glass-orbit-b {
+  from { transform: translate3d(0, 0, 0) scale(1.04); }
+  to { transform: translate3d(-12vw, -12vh, 0) scale(0.9); }
+}
+
+/* Login page: animated green aurora, readable card, and subtle laboratory grid. */
+html body #root .lt-login-wrap {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    linear-gradient(rgba(34, 116, 76, 0.045) 1px, transparent 1px) 0 0 / 34px 34px,
+    linear-gradient(90deg, rgba(34, 116, 76, 0.045) 1px, transparent 1px) 0 0 / 34px 34px,
+    radial-gradient(circle at 18% 20%, rgba(111, 229, 154, 0.34), transparent 32%),
+    radial-gradient(circle at 84% 74%, rgba(49, 180, 160, 0.22), transparent 36%),
+    linear-gradient(135deg, #f9fdf9 0%, #edf8f0 58%, #e7f5ed 100%) !important;
+}
+
+html body #root .lt-login-wrap::before,
+html body #root .lt-login-wrap::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow:
+    inset 0 0 55px rgba(255, 255, 255, 0.32),
+    0 24px 90px rgba(29, 104, 66, 0.12);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+html body #root .lt-login-wrap::before {
+  width: clamp(190px, 28vw, 430px);
+  aspect-ratio: 1;
+  left: clamp(-140px, -8vw, -70px);
+  top: clamp(-90px, 6vh, 90px);
+  background: linear-gradient(145deg, rgba(255,255,255,.42), rgba(97,216,143,.13));
+  animation: lt-login-float-a 10s var(--lt-glass-ease) infinite alternate;
+}
+
+html body #root .lt-login-wrap::after {
+  width: clamp(160px, 24vw, 350px);
+  aspect-ratio: 1;
+  right: clamp(-120px, -5vw, -40px);
+  bottom: clamp(-100px, 4vh, 80px);
+  background: linear-gradient(145deg, rgba(255,255,255,.38), rgba(42,160,144,.12));
+  animation: lt-login-float-b 13s var(--lt-glass-ease) infinite alternate;
+}
+
+@keyframes lt-login-float-a {
+  from { transform: translate3d(0, 0, 0) rotate(-5deg); }
+  to { transform: translate3d(34px, 28px, 0) rotate(7deg); }
+}
+
+@keyframes lt-login-float-b {
+  from { transform: translate3d(0, 0, 0) rotate(8deg); }
+  to { transform: translate3d(-42px, -24px, 0) rotate(-6deg); }
+}
+
+html body #root .lt-login-card {
+  color: var(--lt-glass-ink) !important;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.94), rgba(246,255,249,.75)) !important;
+  border: 1px solid rgba(255,255,255,.92) !important;
+  border-radius: 26px !important;
+  box-shadow:
+    0 30px 90px rgba(31, 93, 61, 0.16),
+    inset 0 1px 0 rgba(255,255,255,.96),
+    inset 0 -1px 0 rgba(40,117,76,.08) !important;
+  backdrop-filter: blur(26px) saturate(145%) !important;
+  -webkit-backdrop-filter: blur(26px) saturate(145%) !important;
+  animation: lt-login-card-in .72s var(--lt-glass-ease) both;
+}
+
+html body #root .lt-login-card::before {
+  top: 0 !important;
+  left: 24px !important;
+  right: 24px !important;
+  height: 1px;
+  border: 0 !important;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.98), transparent);
+}
+
+@keyframes lt-login-card-in {
+  from { opacity: 0; transform: translate3d(0, 24px, 0) scale(.97); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+html body #root .lt-login-card :is(.lt-brand-name, label, strong, .lt-auth-switch button) {
+  color: var(--lt-glass-ink) !important;
+}
+
+html body #root .lt-login-card :is(.lt-brand-sub, .lt-note, p, small) {
+  color: var(--lt-glass-ink-soft) !important;
+}
+
+html body #root .lt-login-card :is(input, select, textarea) {
+  color: #173d2a !important;
+  background: rgba(255,255,255,.8) !important;
+  border-color: rgba(37,108,70,.2) !important;
+  box-shadow: inset 0 1px 2px rgba(32,84,56,.04) !important;
+}
+
+html body #root .lt-login-card :is(input, textarea)::placeholder {
+  color: #6a8278 !important;
+  opacity: 1;
+}
+
+/* Sidebar becomes a stable frosted navigation rail. */
+html body #root .lt-sidebar {
+  background:
+    linear-gradient(180deg, rgba(252,255,253,.88), rgba(240,250,244,.76)) !important;
+  border-right: 1px solid rgba(255,255,255,.82) !important;
+  box-shadow:
+    14px 0 45px rgba(27,83,53,.07),
+    inset -1px 0 0 rgba(40,113,73,.08) !important;
+  backdrop-filter: blur(24px) saturate(135%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(135%) !important;
+}
+
+html body #root .lt-sidebar-foot {
+  background: rgba(247,253,249,.84) !important;
+  border-top-color: rgba(44,111,75,.13) !important;
+  backdrop-filter: blur(18px) saturate(135%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+}
+
+html body #root .lt-sidebar-tab {
+  position: relative;
+  isolation: isolate;
+  margin: 3px 9px;
+  border-radius: 14px !important;
+  overflow: hidden;
+  color: #49655a !important;
+  transition:
+    transform .28s var(--lt-glass-ease),
+    color .22s ease,
+    background .28s ease,
+    box-shadow .28s ease !important;
+}
+
+html body #root .lt-sidebar-tab::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 18%, rgba(255,255,255,.72) 47%, transparent 72%);
+  transform: translateX(-135%);
+  transition: transform .62s var(--lt-glass-ease);
+  pointer-events: none;
+}
+
+html body #root .lt-sidebar-tab:hover {
+  color: var(--lt-glass-green-deep) !important;
+  background: rgba(255,255,255,.62) !important;
+  box-shadow:
+    0 10px 24px rgba(37,100,67,.1),
+    inset 0 1px 0 rgba(255,255,255,.92) !important;
+  transform: translate3d(4px, -1px, 0) scale(1.012) !important;
+}
+
+html body #root .lt-sidebar-tab:hover::after {
+  transform: translateX(135%);
+}
+
+html body #root .lt-sidebar-tab.active {
+  color: #154b34 !important;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.86), rgba(192,238,207,.58)) !important;
+  border: 1px solid rgba(255,255,255,.9) !important;
+  box-shadow:
+    0 12px 30px rgba(42,115,76,.14),
+    inset 0 1px 0 rgba(255,255,255,.96),
+    inset 0 -1px 0 rgba(40,112,73,.1) !important;
+}
+
+html body #root .lt-sidebar-tab.active::before {
+  left: 5px !important;
+  top: 26% !important;
+  bottom: 26% !important;
+  width: 3px !important;
+  border-radius: 99px !important;
+  background: linear-gradient(180deg, #43a86f, #1d6e4a) !important;
+  box-shadow: 0 0 14px rgba(51,155,95,.45) !important;
+}
+
+/* Main surface and reliable section-change animation. */
+html body #root .lt-main {
+  position: relative;
+  color: var(--lt-glass-ink) !important;
+}
+
+html body #root .lt-main::before {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 15% 2%, rgba(137,225,166,.16), transparent 32%),
+    radial-gradient(circle at 88% 62%, rgba(58,167,145,.1), transparent 35%);
+}
+
+@keyframes lt-glass-section-in {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0) scale(.991);
+  }
+  58% { opacity: 1; }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+html body #root .lt-main.lt-section-entering > *:not(style) {
+  animation: lt-glass-section-in .52s var(--lt-glass-ease) both !important;
+  transform-origin: center top;
+}
+
+html body #root .lt-main.lt-section-entering > *:not(style):nth-child(2) { animation-delay: .025s !important; }
+html body #root .lt-main.lt-section-entering > *:not(style):nth-child(3) { animation-delay: .05s !important; }
+html body #root .lt-main.lt-section-entering > *:not(style):nth-child(4) { animation-delay: .075s !important; }
+
+/* Clear headings and labels on every background. */
+html body #root .lt-root :is(.lt-h1, .lt-section-title, .lt-card-title, .lt-request-title, .lt-modal-title, h1, h2, h3, h4) {
+  color: #153f2a !important;
+  text-shadow: 0 1px 0 rgba(255,255,255,.72);
+}
+
+html body #root .lt-root :is(.lt-h1-sub, .lt-search-dept, .lt-request-meta, .lt-user-chip, .lt-brand-sub) {
+  color: #4c685d !important;
+}
+
+/* iOS-style glass surfaces used throughout all sections. */
+html body #root .lt-root :is(
+  .lt-card,
+  .lt-stat-card,
+  .lt-request-card,
+  .lt-culture-card,
+  .lt-culture-summary,
+  .lt-table-wrap,
+  .lt-chat-wrap,
+  .lt-conv-list,
+  .lt-conv-layout,
+  .lt-maintenance-form,
+  .lt-note,
+  .lt-filter-row,
+  .lt-pagination,
+  .lt-modal,
+  .lt-search-line,
+  .lt-alert-card,
+  .lt-material-detail-row,
+  .lt-add-card
+) {
+  position: relative;
+  isolation: isolate;
+  color: var(--lt-glass-ink) !important;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.91), rgba(247,255,250,.68)) !important;
+  border: 1px solid rgba(255,255,255,.86) !important;
+  border-radius: 18px !important;
+  box-shadow:
+    var(--lt-glass-shadow),
+    inset 0 1px 0 rgba(255,255,255,.95),
+    inset 0 -1px 0 rgba(31,102,65,.07) !important;
+  backdrop-filter: blur(18px) saturate(135%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(135%) !important;
+}
+
+/* Keep data tables readable instead of making them excessively transparent. */
+html body #root .lt-table-wrap {
+  background: rgba(255,255,255,.88) !important;
+  overflow: auto;
+}
+
+html body #root .lt-table-wrap :is(th, td) {
+  color: #284b3b !important;
+  border-color: rgba(50,109,75,.11) !important;
+}
+
+html body #root .lt-table-wrap th {
+  color: #173f2b !important;
+  background: rgba(234,247,238,.78) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+html body #root .lt-table-wrap tbody tr {
+  transition: background .22s ease, transform .22s var(--lt-glass-ease);
+}
+
+html body #root .lt-table-wrap tbody tr:hover {
+  background: rgba(216,242,224,.48) !important;
+}
+
+/* Specular glass sweep on hover. */
+html body #root .lt-root :is(
+  .lt-card,
+  .lt-stat-card,
+  .lt-request-card,
+  .lt-culture-card,
+  .lt-table-wrap,
+  .lt-chat-wrap,
+  .lt-conv-list,
+  .lt-maintenance-form,
+  .lt-note,
+  .lt-filter-row,
+  .lt-add-card
+)::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(118deg, transparent 18%, rgba(255,255,255,.66) 43%, rgba(255,255,255,.12) 57%, transparent 74%);
+  opacity: 0;
+  transform: translateX(-38%);
+  transition: opacity .28s ease, transform .62s var(--lt-glass-ease);
+  mix-blend-mode: screen;
+}
+
+html body #root .lt-root :is(
+  .lt-card,
+  .lt-stat-card,
+  .lt-request-card,
+  .lt-culture-card,
+  .lt-chat-wrap,
+  .lt-conv-list,
+  .lt-maintenance-form,
+  .lt-note,
+  .lt-filter-row,
+  .lt-add-card
+):hover {
+  border-color: rgba(255,255,255,.98) !important;
+  box-shadow:
+    var(--lt-glass-shadow-hover),
+    inset 0 1px 0 rgba(255,255,255,1),
+    inset 0 -1px 0 rgba(38,120,76,.08) !important;
+  transform: translate3d(0, -5px, 0) scale(1.007) !important;
+}
+
+html body #root .lt-root :is(
+  .lt-card,
+  .lt-stat-card,
+  .lt-request-card,
+  .lt-culture-card,
+  .lt-table-wrap,
+  .lt-chat-wrap,
+  .lt-conv-list,
+  .lt-maintenance-form,
+  .lt-note,
+  .lt-filter-row,
+  .lt-add-card
+):hover::after {
+  opacity: .72;
+  transform: translateX(38%);
+}
+
+/* Inputs and controls look translucent while preserving strong contrast. */
+html body #root .lt-root :is(.lt-input, input, select, textarea, .lt-search-line) {
+  color: #173d2a !important;
+  background: rgba(255,255,255,.79) !important;
+  border-color: rgba(41,108,72,.19) !important;
+  box-shadow:
+    inset 0 1px 2px rgba(25,82,51,.045),
+    0 1px 0 rgba(255,255,255,.8) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+html body #root .lt-root :is(input, textarea)::placeholder {
+  color: #70867c !important;
+  opacity: 1;
+}
+
+html body #root .lt-root :is(.lt-input, input, select, textarea):focus {
+  outline: none !important;
+  border-color: rgba(40,133,82,.56) !important;
+  box-shadow:
+    0 0 0 4px rgba(70,176,111,.14),
+    inset 0 1px 2px rgba(25,82,51,.035) !important;
+}
+
+/* Buttons: glass lift, readable labels, and springy press feedback. */
+html body #root .lt-root :is(.lt-btn, button) {
+  border-radius: 13px !important;
+}
+
+html body #root .lt-root :is(.lt-btn-primary, .lt-btn-accent, .lt-subtab.active) {
+  color: #fff !important;
+  background:
+    linear-gradient(145deg, #3a9363, #226f4c) !important;
+  border-color: rgba(25,96,61,.65) !important;
+  box-shadow:
+    0 10px 24px rgba(34,112,71,.2),
+    inset 0 1px 0 rgba(255,255,255,.34) !important;
+}
+
+html body #root .lt-root :is(.lt-btn-ghost, .lt-btn-secondary, .lt-modal-close, .lt-subtab:not(.active)) {
+  color: #315b48 !important;
+  background: rgba(255,255,255,.66) !important;
+  border-color: rgba(48,111,76,.16) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.86) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+html body #root .lt-root :is(.lt-btn, button):hover {
+  filter: none !important;
+  transform: translate3d(0, -2px, 0) scale(1.015) !important;
+  box-shadow:
+    0 13px 30px rgba(30,100,64,.16),
+    inset 0 1px 0 rgba(255,255,255,.52) !important;
+}
+
+html body #root .lt-root :is(.lt-btn, button):active {
+  transform: translate3d(0, 0, 0) scale(.975) !important;
+  transition-duration: .1s !important;
+}
+
+/* Modals and mobile navigation keep the same glass language. */
+html body #root .lt-modal-overlay {
+  background: rgba(19, 52, 36, .32) !important;
+  backdrop-filter: blur(8px) saturate(110%) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(110%) !important;
+}
+
+html body #root .lt-modal {
+  background: rgba(253,255,254,.91) !important;
+  border-radius: 24px !important;
+  box-shadow:
+    0 38px 110px rgba(17,58,36,.26),
+    inset 0 1px 0 rgba(255,255,255,.98) !important;
+}
+
+html body #root .lt-modal-head {
+  background: rgba(248,254,250,.78) !important;
+  border-bottom-color: rgba(44,105,72,.13) !important;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+html body #root .lt-mobile-nav-toggle {
+  color: #153f2a !important;
+  background: rgba(250,255,252,.82) !important;
+  border: 1px solid rgba(255,255,255,.88) !important;
+  box-shadow: 0 12px 30px rgba(28,90,57,.12) !important;
+  backdrop-filter: blur(18px) saturate(130%);
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
+}
+
+/* Status colors retain their meaning and remain legible. */
+html body #root .lt-root :is(.lt-pill, .lt-chip, .lt-status, .lt-badge) {
+  text-shadow: none !important;
+}
+
+html body #root .lt-empty {
+  color: #536f63 !important;
+}
+
+/* Accessibility and performance safeguards. */
+@media (max-width: 860px) {
+  html body #root .lt-sidebar {
+    background: rgba(247,253,249,.94) !important;
+    box-shadow: 18px 0 60px rgba(18,66,40,.22) !important;
+  }
+
+  html body #root .lt-login-card {
+    border-radius: 22px !important;
+    backdrop-filter: blur(20px) saturate(130%) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(130%) !important;
+  }
+
+  html body #root .lt-root :is(
+    .lt-card,
+    .lt-stat-card,
+    .lt-request-card,
+    .lt-culture-card,
+    .lt-table-wrap,
+    .lt-chat-wrap,
+    .lt-conv-list,
+    .lt-maintenance-form,
+    .lt-note,
+    .lt-filter-row
+  ) {
+    border-radius: 16px !important;
+    backdrop-filter: blur(14px) saturate(125%) !important;
+    -webkit-backdrop-filter: blur(14px) saturate(125%) !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  html body #root .lt-root {
+    --lt-glass-ink: #0c2d1c;
+    --lt-glass-ink-soft: #2f5142;
+  }
+
+  html body #root .lt-root :is(
+    .lt-card, .lt-stat-card, .lt-request-card, .lt-culture-card,
+    .lt-table-wrap, .lt-chat-wrap, .lt-conv-list, .lt-maintenance-form,
+    .lt-note, .lt-filter-row, .lt-login-card
+  ) {
+    background: rgba(255,255,255,.96) !important;
+    border-color: rgba(29,83,52,.32) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html body #root .lt-root::before,
+  html body #root .lt-root::after,
+  html body #root .lt-login-wrap::before,
+  html body #root .lt-login-wrap::after,
+  html body #root .lt-login-card,
+  html body #root .lt-main.lt-section-entering > *:not(style) {
+    animation: none !important;
+  }
+
+  html body #root .lt-root *,
+  html body #root .lt-root *::before,
+  html body #root .lt-root *::after {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html body #root .lt-root :is(
+    .lt-card, .lt-stat-card, .lt-request-card, .lt-culture-card,
+    .lt-table-wrap, .lt-chat-wrap, .lt-conv-list, .lt-maintenance-form,
+    .lt-note, .lt-filter-row, .lt-modal, .lt-login-card, .lt-sidebar
+  ) {
+    background: rgba(250,255,252,.97) !important;
+  }
+}
