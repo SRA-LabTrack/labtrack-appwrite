@@ -1,4 +1,4 @@
-﻿import "@fontsource/inter/latin-400.css";
+import "@fontsource/inter/latin-400.css";
 import "@fontsource/inter/latin-500.css";
 import "@fontsource/inter/latin-600.css";
 import "@fontsource/inter/latin-700.css";
@@ -89,3 +89,14 @@ if (document.readyState === "loading") {
 }
 // LABTRACK_IOS_GLASS_MOTION_END
 
+
+
+// LABTRACK_SW_V150
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", async () => {
+    try {
+      const registration = await navigator.serviceWorker.register("/sw.js?v=150", { updateViaCache: "none" });
+      await registration.update();
+    } catch (error) { console.warn("LabTrack offline shell registration failed:", error); }
+  });
+}

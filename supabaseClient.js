@@ -1,14 +1,8 @@
 import { Account, Client, Databases, ID, Query } from "appwrite";
 
-const appwriteEndpoint =
-  import.meta.env.VITE_APPWRITE_ENDPOINT ||
-  "https://fra.cloud.appwrite.io/v1";
-const appwriteProjectId =
-  import.meta.env.VITE_APPWRITE_PROJECT_ID ||
-  "6a595e1200207471ab14";
-const appwriteDatabaseId =
-  import.meta.env.VITE_APPWRITE_DATABASE_ID ||
-  "labtrack";
+const appwriteEndpoint = String(import.meta.env.VITE_APPWRITE_ENDPOINT || "https://fra.cloud.appwrite.io/v1").trim();
+const appwriteProjectId = String(import.meta.env.VITE_APPWRITE_PROJECT_ID || "6a595e1200207471ab14").trim();
+const appwriteDatabaseId = String(import.meta.env.VITE_APPWRITE_DATABASE_ID || "labtrack").trim();
 
 export const isAppwriteConfigured = Boolean(appwriteEndpoint && appwriteProjectId && appwriteDatabaseId);
 
@@ -37,6 +31,176 @@ const databases = client ? new Databases(client) : null;
 
 const isoNow = () => new Date().toISOString();
 const todayYmd = () => new Date().toISOString().slice(0, 10);
+
+// LABTRACK_OFFLINE_FIRST_V150_START
+const OFFLINE_DB_NAME = "labtrack-browser-offline-v150";
+const OFFLINE_DB_VERSION = 1;
+const OFFLINE_SYNC_INTERVAL_MS = 10000;
+let offlineDbPromise = null;
+let offlineSyncing = false;
+
+function canUseOfflineDb() {
+  return typeof window !== "undefined" && typeof indexedDB !== "undefined";
+}
+
+function openOfflineDb() {
+  if (!canUseOfflineDb()) return Promise.resolve(null);
+  if (offlineDbPromise) return offlineDbPromise;
+  offlineDbPromise = new Promise((resolve, reject) => {
+    const request = indexedDB.open(OFFLINE_DB_NAME, OFFLINE_DB_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains("records")) {
+        const records = db.createObjectStore("records", { keyPath: "key" });
+        records.createIndex("table", "table", { unique: false });
+      }
+      if (!db.objectStoreNames.contains("queue")) {
+        const queue = db.createObjectStore("queue", { keyPath: "id", autoIncrement: true });
+        queue.createIndex("createdAt", "createdAt", { unique: false });
+      }
+      if (!db.objectStoreNames.contains("meta")) db.createObjectStore("meta", { keyPath: "key" });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("Offline database could not be opened."));
+  });
+  return offlineDbPromise;
+}
+
+async function idbRequest(storeName, mode, executor) {
+  const db = await openOfflineDb();
+  if (!db) return null;
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(storeName, mode);
+    const store = transaction.objectStore(storeName);
+    let request;
+    try { request = executor(store); } catch (error) { reject(error); return; }
+    transaction.oncomplete = () => resolve(request?.result ?? null);
+    transaction.onerror = () => reject(transaction.error || request?.error || new Error("Offline storage request failed."));
+    transaction.onabort = () => reject(transaction.error || new Error("Offline storage request was aborted."));
+  });
+}
+
+async function offlinePutRecord(table, row, { deleted = false } = {}) {
+  if (!row) return row;
+  const id = row.id || row.$id;
+  if (!id) return row;
+  const normalized = { ...row, id, $id: row.$id || id };
+  await idbRequest("records", "readwrite", (store) => store.put({
+    key: `${table}:${id}`, table, id, deleted, row: normalized, updatedAt: Date.now(),
+  }));
+  return normalized;
+}
+
+async function offlineGetRecord(table, id) {
+  const item = await idbRequest("records", "readonly", (store) => store.get(`${table}:${id}`));
+  return item && !item.deleted ? item.row : null;
+}
+
+async function offlineGetRows(table) {
+  const db = await openOfflineDb();
+  if (!db) return [];
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction("records", "readonly");
+    const index = transaction.objectStore("records").index("table");
+    const request = index.getAll(IDBKeyRange.only(table));
+    request.onsuccess = () => resolve((request.result || []).filter((entry) => !entry.deleted).map((entry) => entry.row));
+    request.onerror = () => reject(request.error || new Error("Offline records could not be read."));
+  });
+}
+
+async function offlineDeleteRecord(table, id) {
+  const existing = await offlineGetRecord(table, id);
+  await offlinePutRecord(table, existing || { id, $id: id }, { deleted: true });
+}
+
+async function offlineSetMeta(key, value) {
+  await idbRequest("meta", "readwrite", (store) => store.put({ key, value, updatedAt: Date.now() }));
+}
+async function offlineGetMeta(key) {
+  const item = await idbRequest("meta", "readonly", (store) => store.get(key));
+  return item?.value ?? null;
+}
+async function offlineDeleteMeta(key) {
+  await idbRequest("meta", "readwrite", (store) => store.delete(key));
+}
+async function offlineEnqueue(operation) {
+  await idbRequest("queue", "readwrite", (store) => store.add({ ...operation, createdAt: Date.now(), attempts: 0, lastError: "" }));
+  await emitOfflineState();
+}
+async function offlineQueueItems() {
+  const items = await idbRequest("queue", "readonly", (store) => store.getAll());
+  return (items || []).sort((a, b) => Number(a.id) - Number(b.id));
+}
+async function offlineDeleteQueueItem(id) { await idbRequest("queue", "readwrite", (store) => store.delete(id)); }
+async function offlineUpdateQueueItem(item) { await idbRequest("queue", "readwrite", (store) => store.put(item)); }
+
+function shouldUseOfflineFallback(error) {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
+  const code = Number(error?.code || error?.response?.code || error?.status || 0);
+  if ([408, 425, 429, 500, 502, 503, 504, 521, 522, 523, 524].includes(code)) return true;
+  if ([400, 401, 403, 404, 409, 422].includes(code)) return false;
+  const message = String(error?.message || error?.response?.message || error || "").toLowerCase();
+  return /network|failed to fetch|fetch failed|timed out|timeout|connection|offline|dns|socket|econn|enotfound/.test(message);
+}
+
+async function emitOfflineState(extra = {}) {
+  if (typeof window === "undefined") return;
+  const queue = await offlineQueueItems().catch(() => []);
+  window.dispatchEvent(new CustomEvent("labtrack-offline-state", { detail: {
+    online: typeof navigator === "undefined" ? true : navigator.onLine !== false,
+    syncing: offlineSyncing, pending: queue.length, ...extra,
+  }}));
+}
+async function cacheRows(table, rows) { await Promise.all((rows || []).map((row) => offlinePutRecord(table, row))); }
+
+async function syncOfflineQueue() {
+  if (!isAppwriteConfigured || offlineSyncing || !canUseOfflineDb()) return;
+  if (typeof navigator !== "undefined" && navigator.onLine === false) { await emitOfflineState(); return; }
+  offlineSyncing = true;
+  await emitOfflineState();
+  const items = await offlineQueueItems().catch(() => []);
+  for (const item of items) {
+    try {
+      if (item.operation === "create") {
+        try {
+          const document = await databases.createDocument({ databaseId: appwriteDatabaseId, collectionId: collectionFor(item.table), documentId: item.rowId, data: cleanPayload(item.payload) });
+          await offlinePutRecord(item.table, mapDocument(document));
+        } catch (error) {
+          if (Number(error?.code) === 409) {
+            const document = await databases.updateDocument({ databaseId: appwriteDatabaseId, collectionId: collectionFor(item.table), documentId: item.rowId, data: cleanPayload(item.payload) });
+            await offlinePutRecord(item.table, mapDocument(document));
+          } else throw error;
+        }
+      } else if (item.operation === "update") {
+        const document = await databases.updateDocument({ databaseId: appwriteDatabaseId, collectionId: collectionFor(item.table), documentId: item.rowId, data: cleanPayload(item.payload) });
+        await offlinePutRecord(item.table, mapDocument(document));
+      } else if (item.operation === "delete") {
+        try { await databases.deleteDocument({ databaseId: appwriteDatabaseId, collectionId: collectionFor(item.table), documentId: item.rowId }); }
+        catch (error) { if (Number(error?.code) !== 404) throw error; }
+        await offlineDeleteRecord(item.table, item.rowId);
+      }
+      await offlineDeleteQueueItem(item.id);
+    } catch (error) {
+      await offlineUpdateQueueItem({ ...item, attempts: Number(item.attempts || 0) + 1, lastError: error?.message || "Synchronization failed." });
+      if (shouldUseOfflineFallback(error)) break;
+    }
+  }
+  offlineSyncing = false;
+  await emitOfflineState({ lastSyncAt: new Date().toISOString() });
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("online", () => { void syncOfflineQueue(); });
+  window.addEventListener("offline", () => { void emitOfflineState(); });
+  window.setInterval(() => { void syncOfflineQueue(); }, OFFLINE_SYNC_INTERVAL_MS);
+  window.setTimeout(() => { void emitOfflineState(); void syncOfflineQueue(); }, 800);
+  window.labtrackOffline = {
+    syncNow: syncOfflineQueue,
+    getState: async () => ({ online: navigator.onLine !== false, syncing: offlineSyncing, pending: (await offlineQueueItems()).length }),
+  };
+}
+// LABTRACK_OFFLINE_FIRST_V150_END
+
 const APPWRITE_REQUEST_TIMEOUT_MS = 15000;
 
 function withRequestTimeout(promise, label, timeoutMs = APPWRITE_REQUEST_TIMEOUT_MS) {
@@ -146,9 +310,11 @@ function mapUser(user) {
 
 async function getCurrentUser() {
   try {
-    const user = await account.get();
-    return mapUser(user);
-  } catch {
+    const user = mapUser(await account.get());
+    await offlineSetMeta("sessionUser", user).catch(() => {});
+    return user;
+  } catch (error) {
+    if (shouldUseOfflineFallback(error)) return await offlineGetMeta("sessionUser").catch(() => null);
     return null;
   }
 }
@@ -157,16 +323,11 @@ async function getCurrentProfile() {
   const user = await getCurrentUser();
   if (!user) return { user: null, profile: null };
   try {
-    const profile = await withRequestTimeout(
-      databases.getDocument({
-        databaseId: appwriteDatabaseId,
-        collectionId: COLLECTIONS.profiles,
-        documentId: user.id,
-      }),
-      "Load profile"
-    );
-    return { user, profile: mapDocument(profile) };
-  } catch {
+    const profile = mapDocument(await databases.getDocument({ databaseId: appwriteDatabaseId, collectionId: COLLECTIONS.profiles, documentId: user.id }));
+    await offlinePutRecord("profiles", profile);
+    return { user, profile };
+  } catch (error) {
+    if (shouldUseOfflineFallback(error)) return { user, profile: await offlineGetRecord("profiles", user.id) };
     return { user, profile: null };
   }
 }
@@ -231,101 +392,97 @@ function isOverdueBorrow(row) {
 
 async function listCollection(table, queries = []) {
   try {
-    const response = await withRequestTimeout(
-      databases.listDocuments({
-        databaseId: appwriteDatabaseId,
-        collectionId: collectionFor(table),
-        queries,
-        total: true,
-        ttl: 0,
-      }),
-      `Load ${table}`
-    );
-    return (response.documents || []).map(mapDocument);
+    const response = await databases.listDocuments({ databaseId: appwriteDatabaseId, collectionId: collectionFor(table), queries, total: true, ttl: 0 });
+    const rows = (response.documents || []).map(mapDocument);
+    await cacheRows(table, rows);
+    return rows;
   } catch (error) {
-    if (isRequestTimeout(error)) {
-      console.warn(`LabTrack skipped ${table} after a network timeout.`, error);
-      return [];
-    }
-    throw error;
+    if (!shouldUseOfflineFallback(error)) throw error;
+    return await offlineGetRows(table);
   }
 }
 
 async function listAllCollection(table, { pageSize = 100, maxRows = 5000 } = {}) {
-  const rows = [];
-  let offset = 0;
-
-  while (rows.length < maxRows) {
-    const take = Math.min(pageSize, maxRows - rows.length);
-    const response = await withRequestTimeout(
-      databases.listDocuments({
+  try {
+    const rows = [];
+    let offset = 0;
+    while (rows.length < maxRows) {
+      const take = Math.min(pageSize, maxRows - rows.length);
+      const response = await databases.listDocuments({
         databaseId: appwriteDatabaseId,
         collectionId: collectionFor(table),
         queries: [Query.limit(take), Query.offset(offset)],
         total: true,
         ttl: 0,
-      }),
-      `Load all ${table}`
-    );
-    const documents = (response.documents || []).map(mapDocument);
-    rows.push(...documents);
-
-    if (documents.length < take || rows.length >= Number(response.total || 0)) break;
-    offset += documents.length;
+      });
+      const documents = (response.documents || []).map(mapDocument);
+      rows.push(...documents);
+      if (documents.length < take || rows.length >= Number(response.total || 0)) break;
+      offset += documents.length;
+    }
+    await cacheRows(table, rows);
+    return rows;
+  } catch (error) {
+    if (!shouldUseOfflineFallback(error)) throw error;
+    return (await offlineGetRows(table)).slice(0, maxRows);
   }
-
-  return rows;
 }
 
 async function getById(table, id) {
-  const document = await withRequestTimeout(
-    databases.getDocument({
-      databaseId: appwriteDatabaseId,
-      collectionId: collectionFor(table),
-      documentId: id,
-    }),
-    `Load ${table} record`
-  );
-  return mapDocument(document);
+  try {
+    const row = mapDocument(await databases.getDocument({ databaseId: appwriteDatabaseId, collectionId: collectionFor(table), documentId: id }));
+    await offlinePutRecord(table, row);
+    return row;
+  } catch (error) {
+    if (!shouldUseOfflineFallback(error)) throw error;
+    const cached = await offlineGetRecord(table, id);
+    if (!cached) throw error;
+    return cached;
+  }
 }
 
 async function createRow(table, payload, documentId = ID.unique()) {
   const data = cleanPayload(payload);
-  const document = await withRequestTimeout(
-    databases.createDocument({
-      databaseId: appwriteDatabaseId,
-      collectionId: collectionFor(table),
-      documentId,
-      data,
-    }),
-    `Create ${table} record`
-  );
-  return mapDocument(document);
+  try {
+    const row = mapDocument(await databases.createDocument({ databaseId: appwriteDatabaseId, collectionId: collectionFor(table), documentId, data }));
+    await offlinePutRecord(table, row);
+    return row;
+  } catch (error) {
+    if (!shouldUseOfflineFallback(error)) throw error;
+    const row = { ...data, id: documentId, $id: documentId, $createdAt: isoNow(), $updatedAt: isoNow(), __offline: true };
+    await offlinePutRecord(table, row);
+    await offlineEnqueue({ operation: "create", table, rowId: documentId, payload: data });
+    return row;
+  }
 }
 
 async function updateRow(table, id, payload) {
-  const document = await withRequestTimeout(
-    databases.updateDocument({
-      databaseId: appwriteDatabaseId,
-      collectionId: collectionFor(table),
-      documentId: id,
-      data: cleanPayload(payload),
-    }),
-    `Update ${table} record`
-  );
-  return mapDocument(document);
+  const data = cleanPayload(payload);
+  try {
+    const row = mapDocument(await databases.updateDocument({ databaseId: appwriteDatabaseId, collectionId: collectionFor(table), documentId: id, data }));
+    await offlinePutRecord(table, row);
+    return row;
+  } catch (error) {
+    if (!shouldUseOfflineFallback(error)) throw error;
+    const current = await offlineGetRecord(table, id) || { id, $id: id };
+    const row = { ...current, ...data, id, $id: id, $updatedAt: isoNow(), __offline: true };
+    await offlinePutRecord(table, row);
+    await offlineEnqueue({ operation: "update", table, rowId: id, payload: data });
+    return row;
+  }
 }
 
 async function deleteRow(table, id) {
-  await withRequestTimeout(
-    databases.deleteDocument({
-      databaseId: appwriteDatabaseId,
-      collectionId: collectionFor(table),
-      documentId: id,
-    }),
-    `Delete ${table} record`
-  );
-  return null;
+  try {
+    await databases.deleteDocument({ databaseId: appwriteDatabaseId, collectionId: collectionFor(table), documentId: id });
+    await offlineDeleteRecord(table, id);
+    return null;
+  } catch (error) {
+    if (!shouldUseOfflineFallback(error)) throw error;
+    await offlineDeleteRecord(table, id);
+    await offlineEnqueue({ operation: "delete", table, rowId: id, payload: null });
+    return null;
+  }
 }
 
 class AppwriteQueryBuilder {
@@ -498,35 +655,25 @@ class AppwriteQueryBuilder {
           throw error;
         }
       }
-
-      const response = await withRequestTimeout(
-        databases.listDocuments({
-          databaseId: appwriteDatabaseId,
-          collectionId: collectionFor(this.table),
-          queries: this.buildAppwriteQueries(),
-          total: true,
-          ttl: 0,
-        }),
-        `Load ${this.table}`
-      );
-
-      let data = (response.documents || []).map(mapDocument);
+      let response = null;
+      let data = [];
+      try {
+        response = await databases.listDocuments({ databaseId: appwriteDatabaseId, collectionId: collectionFor(this.table), queries: this.buildAppwriteQueries(), total: true, ttl: 0 });
+        data = (response.documents || []).map(mapDocument);
+        await cacheRows(this.table, data);
+      } catch (error) {
+        if (!shouldUseOfflineFallback(error)) throw error;
+        data = await offlineGetRows(this.table);
+      }
       data = this.applyClientFilters(data);
-
-      if (this.wantSingle || this.wantMaybeSingle) {
-        return ok(data[0] || null);
+      const countBeforePaging = data.length;
+      if (!response) {
+        if (this.rangeStart !== null && this.rangeEnd !== null) data = data.slice(this.rangeStart, this.rangeEnd + 1);
+        else if (this.limitValue) data = data.slice(0, this.limitValue);
       }
-
-      return ok(this.headOnly ? null : data, {
-        count: this.orFilters.length || this.searchFilters.length ? data.length : response.total ?? data.length,
-      });
-    } catch (error) {
-      if (isRequestTimeout(error)) {
-        console.warn(`LabTrack skipped ${this.table} after a network timeout.`, error);
-        return ok(this.headOnly ? null : [], { count: 0, warning: String(error?.message || error) });
-      }
-      return fail(error);
-    }
+      if (this.wantSingle || this.wantMaybeSingle) return ok(data[0] || null);
+      return ok(this.headOnly ? null : data, { count: response ? (this.orFilters.length || this.searchFilters.length ? data.length : response.total ?? data.length) : countBeforePaging });
+    } catch (error) { return fail(error); }
   }
 
   async resolveTargetIds() {
@@ -1479,6 +1626,7 @@ export const supabase = isAppwriteConfigured
             }
             await account.createEmailPasswordSession({ email, password });
             const user = mapUser(await account.get());
+            await offlineSetMeta("sessionUser", user).catch(() => {});
             const session = { user };
             notifyAuthListeners("SIGNED_IN", session);
             return ok({ user, session });
@@ -1519,6 +1667,7 @@ export const supabase = isAppwriteConfigured
               if (!String(profileError?.message || "").toLowerCase().includes("already")) throw profileError;
             }
             const user = mapUser(newUser);
+            await offlineSetMeta("sessionUser", user).catch(() => {});
             const session = { user };
             notifyAuthListeners("SIGNED_IN", session);
             return ok({ user, session });
@@ -1533,6 +1682,7 @@ export const supabase = isAppwriteConfigured
           } catch {
             // Already signed out.
           }
+          await offlineDeleteMeta("sessionUser").catch(() => {});
           notifyAuthListeners("SIGNED_OUT", null);
           return ok(null);
         },

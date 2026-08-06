@@ -32,6 +32,7 @@ import {
   FileSpreadsheet,
 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
+import "./labtrack-operational-dashboard.css";
 
 const DEPARTMENTS = [
   "BMO Laboratory",
@@ -1252,7 +1253,27 @@ export default function App() {
   const [formError, setFormError] = useState("");
   const [appMessage, setAppMessage] = useState("");
 
-  const isAdmin = profile?.role === "admin" && profile?.status === "approved";
+    const [sectionLoading, setSectionLoading] = useState(false);
+  const [offlineState, setOfflineState] = useState({ online: typeof navigator === "undefined" ? true : navigator.onLine !== false, syncing: false, pending: 0 });
+  const sectionLoadingTimer = useRef(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const update = (event) => setOfflineState((current) => ({ ...current, ...(event?.detail || {}), online: event?.detail?.online ?? navigator.onLine !== false }));
+    const onOnline = () => setOfflineState((current) => ({ ...current, online: true }));
+    const onOffline = () => setOfflineState((current) => ({ ...current, online: false }));
+    window.addEventListener("labtrack-offline-state", update);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    window.labtrackOffline?.getState?.().then((state) => setOfflineState((current) => ({ ...current, ...state }))).catch(() => {});
+    return () => {
+      window.removeEventListener("labtrack-offline-state", update);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+      if (sectionLoadingTimer.current) window.clearTimeout(sectionLoadingTimer.current);
+    };
+  }, []);
+const isAdmin = profile?.role === "admin" && profile?.status === "approved";
   const accountApproved = profile?.status === "approved";
   const userDept = profile?.dept || DEPARTMENTS[0];
   const displayName = profile?.full_name || session?.user?.email || "User";
@@ -1416,7 +1437,7 @@ export default function App() {
     const shouldLoadOverdueBorrows = isAdmin && ["overview", "overdue", "reports"].includes(tab);
     const shouldLoadMaintenance = tab === "maintenance" || (isAdmin && ["overview", "reports"].includes(tab));
     const shouldLoadMaintenanceRequests = tab === "maintenance" || (isAdmin && tab === "overview");
-    const shouldLoadCultures = tab === "cultureLogs" && (isAdmin || userDept === VIPM_DEPARTMENT);
+    const shouldLoadCultures = (tab === "cultureLogs" || (isAdmin && tab === "overview")) && (isAdmin || userDept === VIPM_DEPARTMENT);
 
     if (shouldLoadSummary) {
       run(supabase.rpc("get_dashboard_summary"), (res) => {
@@ -2004,7 +2025,12 @@ export default function App() {
   const activeNavigationItem = navigationItems.find((item) => item.key === tab) || navigationItems[0];
 
   function switchTab(nextTab) {
-    setTab(nextTab);
+        if (nextTab !== tab) {
+      setSectionLoading(true);
+      if (sectionLoadingTimer.current) window.clearTimeout(sectionLoadingTimer.current);
+      sectionLoadingTimer.current = window.setTimeout(() => setSectionLoading(false), 420);
+    }
+setTab(nextTab);
     setMobileNavOpen(false);
     setFormError("");
     setAppMessage("");
@@ -3947,6 +3973,7 @@ export default function App() {
               <div className="lt-brand-mark"><img className="lt-brand-icon-image" src="/labtrack-green-icon.svg" alt="LabTrack" /></div>
               <div>
                 <div className="lt-brand-name">LabTrack</div>
+                <div className="lt-brand-sub">Powered by Luntian</div>
                 <div className="lt-brand-sub">Smart laboratory material monitoring</div>
                 <div className="lt-brand-powered">powered by <strong>Luntian</strong></div>
               </div>
@@ -4053,6 +4080,15 @@ export default function App() {
           {mobileNavOpen && <button type="button" className="lt-mobile-nav-scrim" aria-label="Close navigation" onClick={() => setMobileNavOpen(false)} />}
 
           <div className="lt-main">
+            {sectionLoading && (
+              <div className="lt-section-loading" role="status" aria-live="polite">
+                <div className="lt-section-loading-card">
+                  <div className="lt-section-loading-icon"><FlaskConical size={28} /></div>
+                  <strong>Loading section…</strong>
+                  <span>Powered by Luntian</span>
+                </div>
+              </div>
+            )}
             {formError && <div className="lt-error" style={{ marginBottom: 12 }}>{formError}</div>}
             {appMessage && <div className="lt-success" style={{ marginBottom: 12 }}>{appMessage}</div>}
             <div className="lt-toolbar">
@@ -4064,6 +4100,15 @@ export default function App() {
               </div>
               {isAdmin && <button className="lt-btn lt-btn-ghost" disabled={busy} onClick={() => openModal("cleanup")}>Clear activity records</button>}
               <button className="lt-btn lt-btn-ghost" disabled={busy} onClick={loadData}>Refresh current page</button>
+              <button
+                className={`lt-connectivity-pill ${offlineState.online ? "online" : "offline"}`}
+                type="button"
+                onClick={() => window.labtrackOffline?.syncNow?.()}
+                title={offlineState.pending ? `${offlineState.pending} offline change${offlineState.pending === 1 ? "" : "s"} waiting to sync` : "Offline cache and synchronization status"}
+              >
+                <span className="lt-connectivity-dot" />
+                {offlineState.syncing ? "Syncing…" : offlineState.online ? (offlineState.pending ? `${offlineState.pending} pending` : "Online") : (offlineState.pending ? `${offlineState.pending} saved offline` : "Offline ready")}
+              </button>
             </div>
 
             {!isAdmin && tab === "inventory" && (
@@ -4209,56 +4254,100 @@ export default function App() {
               </>
             )}
 
-            {isAdmin && tab === "overview" && (
-              <>
-                <div className="lt-header">
+                        {isAdmin && tab === "overview" && (
+              <div className="lt-overview-v140">
+                <div className="lt-header lt-overview-header">
                   <div>
                     <div className="lt-h1">Overview</div>
-                    <div className="lt-h1-sub">Loads only the data needed for this page</div>
+                    <div className="lt-h1-sub">Real-time snapshot of laboratory operations and specimen management</div>
                   </div>
-                </div>
-                <div className="lt-stat-row">
-                  <div className="lt-stat-card"><div className="lt-stat-num">{dashboardSummary?.total_materials ?? materialsTotal}</div><div className="lt-stat-label">Approved materials</div></div>
-                  <div className="lt-stat-card"><div className="lt-stat-num" style={{ color: "var(--warn)" }}>{dashboardSummary?.low_stock ?? 0}</div><div className="lt-stat-label">Low stock</div></div>
-                  <div className="lt-stat-card"><div className="lt-stat-num" style={{ color: "var(--crit)" }}>{dashboardSummary?.expired_materials ?? 0}</div><div className="lt-stat-label">Expired</div></div>
-                  <div className="lt-stat-card"><div className="lt-stat-num" style={{ color: "var(--warn)" }}>{dashboardSummary?.expiring_soon ?? 0}</div><div className="lt-stat-label">Expiring soon</div></div>
-                  <div className="lt-stat-card"><div className="lt-stat-num" style={{ color: "var(--crit)" }}>{pendingRequestsTotal}</div><div className="lt-stat-label">Pending material requests</div></div>
-                  <div className="lt-stat-card"><div className="lt-stat-num" style={{ color: "var(--crit)" }}>{pendingAccountsTotal}</div><div className="lt-stat-label">Pending accounts</div></div>
-                  <div className="lt-stat-card"><div className="lt-stat-num">{dashboardSummary?.active_borrows ?? 0}</div><div className="lt-stat-label">Active borrows</div></div>
-                  <div className="lt-stat-card"><div className="lt-stat-num" style={{ color: "var(--crit)" }}>{overdueBorrowCount}</div><div className="lt-stat-label">Overdue borrows</div></div>
-                  <div className="lt-stat-card"><div className="lt-stat-num" style={{ color: maintenanceDueCount > 0 ? "var(--warn)" : undefined }}>{maintenanceDueCount}</div><div className="lt-stat-label">Maintenance due</div></div>
-                  <div className="lt-stat-card"><div className="lt-stat-num">₱{displayQty(dashboardSummary?.total_inventory_value ?? 0)}</div><div className="lt-stat-label">Inventory value</div></div>
-                  <div className="lt-stat-card"><div className="lt-stat-num">₱{displayQty(dashboardSummary?.monthly_usage_cost ?? 0)}</div><div className="lt-stat-label">Est. monthly usage cost</div></div>
-                  <div className="lt-stat-card"><div className="lt-stat-num">{dashboardSummary?.open_restock_requests ?? 0}</div><div className="lt-stat-label">Open restock requests</div></div>
-                  <div className="lt-stat-card"><div className="lt-stat-num">{dashboardSummary?.supplier_count ?? 0}</div><div className="lt-stat-label">Suppliers</div></div>
+                  <button className="lt-btn lt-btn-accent" onClick={() => openModal("culture")}><Plus size={14} /> Add growth log</button>
                 </div>
 
-                <div className="lt-section-title">Notification center</div>
-                <NotificationList rows={notifications.slice(0, 6)} />
-                <div style={{ marginTop: 12 }}>
-                  <button className="lt-btn lt-btn-ghost" onClick={() => switchTab("alerts")}><Bell size={14} /> Open all alerts</button>
-                </div>
+                <section className="lt-welcome-panel">
+                  <div className="lt-welcome-icon"><TrendingUp size={30} /></div>
+                  <div className="lt-welcome-copy">
+                    <strong>Welcome back, {displayName}.</strong>
+                    <span>Monitor specimen growth, material health, recent activity, and issues that need attention.</span>
+                  </div>
+                  <div className="lt-welcome-status">
+                    <span><CalendarDays size={14} /> {new Date().toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })} · {new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span>
+                    <b className={(allAttention.length + overdueBorrowCount + maintenanceDueCount) > 0 ? "attention" : "ok"}>
+                      <i /> {(allAttention.length + overdueBorrowCount + maintenanceDueCount) > 0 ? "Attention required" : "All systems operational"}
+                    </b>
+                  </div>
+                </section>
 
-                <div className="lt-section-title">Needs attention</div>
-                <div className="lt-table-wrap">
-                  {allAttention.length === 0 && <div className="lt-empty">Everything is above threshold.</div>}
-                  {allAttention.map((material) => (
-                    <div className="lt-attn-row" key={material.id}>
-                      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <StatusDot status={statusOf(material)} /> <strong>{material.name}</strong>
-                        <span style={{ color: "var(--ink-soft)" }}>· {material.dept} · {expiryLabel[expiryStatusOf(material)]}</span>
-                      </span>
-                      <span className="lt-mono">{displayQty(material.qty)} {material.unit} <span style={{ color: "var(--ink-soft)" }}>/ {displayQty(material.threshold)} threshold · expires {material.expires_at ? fmtDate(material.expires_at) : "not set"}</span></span>
+                <section className="lt-kpi-ribbon" aria-label="VIPM growth summary">
+                  <button type="button" onClick={() => switchTab("cultureLogs")}><FlaskConical size={22} /><span><strong>{cultureSummary.total}</strong><small>Total cultures</small></span></button>
+                  <button type="button" onClick={() => switchTab("cultureLogs")}><Beaker size={22} /><span><strong>{cultureSummary.fungi}</strong><small>Fungi logs</small></span></button>
+                  <button type="button" onClick={() => switchTab("cultureLogs")}><PackageOpen size={22} /><span><strong>{cultureSummary.bacteria}</strong><small>Bacteria logs</small></span></button>
+                  <button type="button" onClick={() => switchTab("cultureLogs")}><ClipboardList size={22} /><span><strong>{cultureSummary.total - cultureSummary.fungi - cultureSummary.bacteria}</strong><small>Other specimens</small></span></button>
+                  <button type="button" onClick={() => switchTab("cultureLogs")}><ShieldCheck size={22} /><span><strong>{cultureSummary.ready}</strong><small>Ready now</small></span></button>
+                  <button type="button" className="lt-kpi-view-all" onClick={() => switchTab("cultureLogs")}><TrendingUp size={21} /><span><strong>View</strong><small>All growth metrics</small></span></button>
+                </section>
+
+                <div className="lt-overview-split">
+                  <section className="lt-operational-panel">
+                    <div className="lt-panel-heading"><div className="lt-panel-icon"><ShieldCheck size={20} /></div><div><strong>Operational Health</strong><span>Key indicators and system status at a glance</span></div></div>
+                    <div className="lt-health-layout">
+                      <div className="lt-health-ring" style={{ "--health": `${Math.max(0, 100 - Math.min(80, ((dashboardSummary?.low_stock ?? 0) + (dashboardSummary?.expired_materials ?? 0) + pendingRequestsTotal + overdueBorrowCount + maintenanceDueCount) * 8))}%` }}>
+                        <div><strong>{Math.max(0, 100 - Math.min(80, ((dashboardSummary?.low_stock ?? 0) + (dashboardSummary?.expired_materials ?? 0) + pendingRequestsTotal + overdueBorrowCount + maintenanceDueCount) * 8))}%</strong><span>Overall Health</span><small>{(allAttention.length + overdueBorrowCount + maintenanceDueCount) > 0 ? "Review flagged items" : "All systems normal"}</small></div>
+                      </div>
+                      <div className="lt-health-checks">
+                        <div className={(dashboardSummary?.expired_materials ?? 0) > 0 ? "warn" : "ok"}><ShieldCheck size={16} /><span><strong>Material status</strong><small>{(dashboardSummary?.expired_materials ?? 0) > 0 ? `${dashboardSummary?.expired_materials} expired` : "No expired materials"}</small></span></div>
+                        <div className={(dashboardSummary?.low_stock ?? 0) > 0 ? "warn" : "ok"}><PackageOpen size={16} /><span><strong>Stock levels</strong><small>{(dashboardSummary?.low_stock ?? 0) > 0 ? `${dashboardSummary?.low_stock} below threshold` : "Within range"}</small></span></div>
+                        <div className={offlineState.pending > 0 ? "warn" : "ok"}><ArrowRightLeft size={16} /><span><strong>Data sync</strong><small>{offlineState.pending > 0 ? `${offlineState.pending} change${offlineState.pending === 1 ? "" : "s"} waiting` : offlineState.online ? "Up to date" : "Offline cache active"}</small></span></div>
+                        <div className={maintenanceDueCount > 0 ? "warn" : "ok"}><CalendarClock size={16} /><span><strong>Maintenance</strong><small>{maintenanceDueCount > 0 ? `${maintenanceDueCount} due` : "No issues detected"}</small></span></div>
+                      </div>
                     </div>
-                  ))}
+                    <button className="lt-inline-link" onClick={() => switchTab("alerts")}>View operational dashboard <ArrowRightLeft size={13} /></button>
+                  </section>
+
+                  <section className="lt-activity-panel">
+                    <div className="lt-panel-heading"><div className="lt-panel-icon"><TrendingUp size={20} /></div><div><strong>Lab Activity</strong><span>Recent updates and ongoing activities</span></div></div>
+                    <div className="lt-activity-timeline">
+                      {notifications.slice(0, 4).map((item, index) => (
+                        <button type="button" key={`${item.kind}-${index}`} onClick={() => switchTab("alerts")}>
+                          <time>{index === 0 ? "Now" : `${index * 15}m`}</time><i /><span className="lt-activity-category">{item.dept || "Lab"}</span><span className="lt-activity-copy"><strong>{item.title}</strong><small>{item.detail}</small></span><ArrowRightLeft size={14} />
+                        </button>
+                      ))}
+                      {notifications.length === 0 && (
+                        <button type="button" onClick={() => switchTab("logs")}><time>Now</time><i /><span className="lt-activity-category">System</span><span className="lt-activity-copy"><strong>No new alerts</strong><small>LabTrack is ready and all monitored values are within range.</small></span><ArrowRightLeft size={14} /></button>
+                      )}
+                    </div>
+                    <button className="lt-inline-link" onClick={() => switchTab("logs")}>View all activity <ArrowRightLeft size={13} /></button>
+                  </section>
                 </div>
 
-                <div className="lt-section-title">Predictive restocking suggestions</div>
-                <ForecastTable rows={topForecastRows} onCreateRestock={createRestockFromForecast} />
-                <div style={{ marginTop: 12 }}>
-                  <button className="lt-btn lt-btn-accent" onClick={() => switchTab("forecast")}><TrendingUp size={14} /> Open full forecast</button>
-                </div>
-              </>
+                <section className="lt-module-band">
+                  <article><div className="lt-module-title"><PackageOpen size={17} /><strong>Materials</strong></div><div className="lt-module-main"><strong>{dashboardSummary?.total_materials ?? materialsTotal}</strong><span>Approved materials</span></div><ul><li>{dashboardSummary?.low_stock ?? 0} Low stock</li><li>{dashboardSummary?.expiring_soon ?? 0} Expiring soon</li><li>{pendingRequestsTotal} Pending requests</li></ul><button onClick={() => switchTab("approvals")}>View materials <ArrowRightLeft size={12} /></button></article>
+                  <article><div className="lt-module-title"><UserCheck size={17} /><strong>Accounts</strong></div><div className="lt-module-main"><strong>{pendingAccountsTotal}</strong><span>Pending accounts</span></div><ul><li>{dashboardSummary?.active_borrows ?? 0} Active borrows</li><li>{overdueBorrowCount} Overdue borrows</li></ul><button onClick={() => switchTab("accounts")}>View accounts <ArrowRightLeft size={12} /></button></article>
+                  <article><div className="lt-module-title"><DollarSign size={17} /><strong>Inventory</strong></div><div className="lt-module-main"><strong>₱{displayQty(dashboardSummary?.total_inventory_value ?? 0)}</strong><span>Inventory value</span></div><ul><li>{dashboardSummary?.open_restock_requests ?? 0} Open restock</li><li>{dashboardSummary?.supplier_count ?? 0} Suppliers</li></ul><button onClick={() => switchTab("departments")}>View inventory <ArrowRightLeft size={12} /></button></article>
+                  <article><div className="lt-module-title"><CalendarClock size={17} /><strong>Maintenance</strong></div><div className="lt-module-main"><strong>{maintenanceDueCount}</strong><span>Maintenance due</span></div><ul><li>{dashboardSummary?.expiring_soon ?? 0} Expiring soon</li><li>{overdueBorrowCount} Overdue</li></ul><button onClick={() => switchTab("maintenance")}>View maintenance <ArrowRightLeft size={12} /></button></article>
+                </section>
+
+                <section className="lt-notification-strip">
+                  <div><Bell size={18} /><span><strong>Notification Center</strong><small>Stay informed about important alerts and system notifications.</small></span></div>
+                  <span className="crit"><AlertTriangle size={13} /> {unreadAlertCount} Alerts</span>
+                  <span className="warn"><CalendarClock size={13} /> {(dashboardSummary?.low_stock ?? 0) + (dashboardSummary?.expiring_soon ?? 0)} Warnings</span>
+                  <span className="ok"><ShieldCheck size={13} /> {(unreadAlertCount + (dashboardSummary?.low_stock ?? 0)) === 0 ? "All Clear" : "Monitoring"}</span>
+                  <button onClick={() => switchTab("alerts")}>View all notifications <ArrowRightLeft size={13} /></button>
+                </section>
+
+                <details className="lt-overview-details">
+                  <summary>Needs attention and predictive restocking details</summary>
+                  <div className="lt-section-title">Needs attention</div>
+                  <div className="lt-table-wrap">
+                    {allAttention.length === 0 && <div className="lt-empty">Everything is above threshold.</div>}
+                    {allAttention.map((material) => (
+                      <div className="lt-attn-row" key={material.id}><span style={{ display: "flex", alignItems: "center", gap: 8 }}><StatusDot status={statusOf(material)} /> <strong>{material.name}</strong><span style={{ color: "var(--ink-soft)" }}>· {material.dept} · {expiryLabel[expiryStatusOf(material)]}</span></span><span className="lt-mono">{displayQty(material.qty)} {material.unit} <span style={{ color: "var(--ink-soft)" }}>/ {displayQty(material.threshold)} threshold</span></span></div>
+                    ))}
+                  </div>
+                  <div className="lt-section-title">Predictive restocking suggestions</div>
+                  <ForecastTable rows={topForecastRows} onCreateRestock={createRestockFromForecast} />
+                </details>
+              </div>
             )}
 
             {isAdmin && tab === "approvals" && (
