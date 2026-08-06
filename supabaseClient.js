@@ -1,8 +1,14 @@
 import { Account, Client, Databases, ID, Query } from "appwrite";
 
-const appwriteEndpoint = import.meta.env.VITE_APPWRITE_ENDPOINT || "https://fra.cloud.appwrite.io/v1";
-const appwriteProjectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
-const appwriteDatabaseId = import.meta.env.VITE_APPWRITE_DATABASE_ID || "labtrack";
+const appwriteEndpoint =
+  import.meta.env.VITE_APPWRITE_ENDPOINT ||
+  "https://fra.cloud.appwrite.io/v1";
+const appwriteProjectId =
+  import.meta.env.VITE_APPWRITE_PROJECT_ID ||
+  "6a595e1200207471ab14";
+const appwriteDatabaseId =
+  import.meta.env.VITE_APPWRITE_DATABASE_ID ||
+  "labtrack";
 
 export const isAppwriteConfigured = Boolean(appwriteEndpoint && appwriteProjectId && appwriteDatabaseId);
 
@@ -736,7 +742,7 @@ async function runRpc(name, args = {}) {
           material_name: request.name,
           type: "approved",
           qty: Number(request.qty || 0),
-          detail: `${args.admin_note_param || "Approved material request"} · MR: ${args.material_responsible_param || request.material_responsible || request.requester_name || "Not assigned"}`,
+          detail: `${args.admin_note_param || "Approved material request"} Â· MR: ${args.material_responsible_param || request.material_responsible || request.requester_name || "Not assigned"}`,
           user_id: userId,
           user_name: displayName,
         });
@@ -1085,7 +1091,7 @@ async function runRpc(name, args = {}) {
           args.service_provider_param ? `Provider: ${args.service_provider_param}` : "",
           args.technician_param ? `Technician: ${args.technician_param}` : "",
           args.notes_param || "",
-        ].filter(Boolean).join(" · ").slice(0, 1000);
+        ].filter(Boolean).join(" Â· ").slice(0, 1000);
 
         await updateRow("materials", material.id, {
           condition: args.condition_param || material.condition || "Good",
@@ -1141,7 +1147,7 @@ async function runRpc(name, args = {}) {
           request.service_provider ? `Provider: ${request.service_provider}` : "",
           request.technician ? `Technician: ${request.technician}` : "",
           request.notes || "",
-        ].filter(Boolean).join(" · ").slice(0, 1000);
+        ].filter(Boolean).join(" Â· ").slice(0, 1000);
 
         await updateRow("materials", material.id, {
           condition: request.condition || material.condition || "Good",
@@ -1164,7 +1170,7 @@ async function runRpc(name, args = {}) {
           material_name: material.name,
           type: "maintenance",
           qty: 0,
-          detail: `${summary || "Maintenance request approved"}${args.admin_note_param ? ` · ${args.admin_note_param}` : ""}`.slice(0, 5000),
+          detail: `${summary || "Maintenance request approved"}${args.admin_note_param ? ` Â· ${args.admin_note_param}` : ""}`.slice(0, 5000),
           user_id: userId,
           user_name: displayName,
         });
@@ -1203,7 +1209,7 @@ async function runRpc(name, args = {}) {
           material_name: material.name,
           type: "correction",
           qty: 0,
-          detail: `Maintenance updated: ${args.condition_param || "Good"}${args.note_param ? ` · ${args.note_param}` : ""}`,
+          detail: `Maintenance updated: ${args.condition_param || "Good"}${args.note_param ? ` Â· ${args.note_param}` : ""}`,
           user_id: userId,
           user_name: displayName,
         });
